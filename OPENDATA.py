@@ -128,38 +128,38 @@ COLONNES_CP_A_SCANNER = ["cp", "code_postal", "code_post", "zipcode", "commune",
 URL_LOGO = "logo_pulse.png" 
 
 # ==========================================
-# 2. FONCTIONS UTILES (Parser d'heures)
+# 2. FONCTIONS UTILES
 # ==========================================
 
-def parser_horaires_rennes(texte_horaire):
+def parser_horaires_robust(texte_horaire):
     """
-    Transforme '06h00-07h00' ou '6:00-7:00' en chiffres (6, 7)
-    pour que le graphique puisse tracer la durée.
+    Fonction très robuste qui extrait les deux premiers chiffres d'une chaîne.
+    Ex: "07h00 - 09h00" -> 7, 9
+    Ex: "18:30 à 20:00" -> 18, 20
     """
     try:
-        # Nettoyage : on remplace 'h' par ':' et on coupe
-        if not isinstance(texte_horaire, str): return 0, 0
-        texte_clean = texte_horaire.lower().replace('h', ':').replace(' ', '')
+        # On cherche tous les nombres dans le texte
+        nums = [int(s) for s in re.findall(r'\d+', str(texte_horaire))]
         
-        parts = texte_clean.split('-')
-        if len(parts) == 2:
-            debut_str = parts[0].split(':')[0] # On prend juste l'heure (ex: 16 de 16:30)
-            fin_str = parts[1].split(':')[0]
+        if len(nums) >= 2:
+            debut = nums[0]
+            fin = nums[1] # On prend le 2ème chiffre trouvé comme fin (ex: 07 et 09)
             
-            debut = int(debut_str)
-            fin = int(fin_str)
+            # Gestion basique des minutes : si on a 7, 00, 9, 00, on prend 1er et 3eme
+            # Pour l'instant on reste simple, on suppose format HH...HH
             
-            # Gestion de minuit (ex: 22h-01h -> 22 à 25)
+            # Correction si fin < debut (ex: 22h - 01h)
+            duree = fin - debut
             if fin < debut:
                 fin += 24
-                
-            return debut, fin
+                duree = fin - debut
+            
+            return debut, fin, duree
     except:
         pass
-    return 0, 0
+    return None, None, 0
 
 def recuperer_coordonnees(site):
-    """ Fonction 'Détective' qui cherche les coordonnées GPS partout """
     lat, lon = None, None
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
@@ -408,41 +408,58 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
+            # 1. Nettoyage et Gestion des données
             if "frequentation" in df.columns:
-                df["frequentation"] = df["frequentation"].fillna("Inconnue")
-                df["frequentation"] = df["frequentation"].apply(lambda x: str(x).strip()) # Nettoyage
+                df["frequentation"] = df["frequentation"].fillna("Non ouverte")
+                df["frequentation"] = df["frequentation"].apply(lambda x: str(x).strip() if x else "Non ouverte")
 
             if "ligne" in df.columns and "frequentation" in df.columns and "tranche_horaire" in df.columns:
                 
-                # PREPARATION DONNEES TEMPORELLES
-                # On applique la fonction qui transforme "06h-07h" en [6, 7]
-                df[['heure_debut', 'heure_fin']] = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_rennes(x)))
+                # 2. Parsing Robuste des heures
+                # On applique la fonction pour créer 3 colonnes : Debut, Fin, Durée
+                parsed_data = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(x)))
+                parsed_data.columns = ['heure_debut', 'heure_fin', 'duree_heures']
+                df = pd.concat([df, parsed_data], axis=1)
                 
-                st.write("### 🟢 État de charge des lignes")
-                # Graphique 1 : Barres empilées
-                chart = alt.Chart(df).mark_bar().encode(
-                    x=alt.X('ligne', sort='-y', title="Ligne"),
-                    y=alt.Y('count()', title="Nb Relevés"),
-                    # On laisse Altair gérer les couleurs automatiquement pour éviter les erreurs de mapping
-                    color=alt.Color('frequentation', legend=alt.Legend(title="Niveau Charge")),
-                    tooltip=['ligne', 'frequentation', 'count()']
-                ).interactive()
-                st.altair_chart(chart, use_container_width=True)
+                # On enlève les lignes où le parsing a échoué (NaN)
+                df_clean = df.dropna(subset=['heure_debut', 'heure_fin'])
                 
-                st.write("### 📅 Disponibilité & Charge Horaire")
-                st.caption("La barre s'étend sur toute la durée de la tranche horaire.")
-                
-                # Graphique 2 : Heatmap étendue (Gantt style)
-                heatmap = alt.Chart(df).mark_bar().encode(
-                    x=alt.X('heure_debut', title="Heure (Début)", scale=alt.Scale(domain=[0, 24])),
-                    x2='heure_fin', # C'est ça qui fait la barre longue !
-                    y=alt.Y('ligne', title="Ligne"),
-                    color=alt.Color('frequentation', title="Charge"),
-                    tooltip=['ligne', 'tranche_horaire', 'frequentation']
-                ).interactive()
-                st.altair_chart(heatmap, use_container_width=True)
+                if not df_clean.empty:
+                    st.write("### 🟢 Cumul d'Heures par Niveau de Charge")
+                    st.caption("Le graphique montre combien d'heures au total la ligne est dans chaque état.")
+                    
+                    # Graphique 1 : SOMME DE LA DUREE (et non count)
+                    chart = alt.Chart(df_clean).mark_bar().encode(
+                        x=alt.X('ligne', sort='-y', title="Ligne"),
+                        y=alt.Y('sum(duree_heures)', title="Heures Totales"),
+                        color=alt.Color('frequentation:N', 
+                                        scale=alt.Scale(
+                                            domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],
+                                            range=['#2ecc71', '#f1c40f', '#e74c3c', '#95a5a6'] 
+                                        ),
+                                        legend=alt.Legend(title="Charge")),
+                        tooltip=['ligne', 'frequentation', 'sum(duree_heures)']
+                    ).interactive()
+                    st.altair_chart(chart, use_container_width=True)
+                    
+                    st.write("### 📅 Planning de Charge (Gantt)")
+                    st.caption("Visualisation temporelle des tranches horaires.")
+                    
+                    # Graphique 2 : GANTT (Barre de X à X2)
+                    heatmap = alt.Chart(df_clean).mark_bar().encode(
+                        x=alt.X('heure_debut', title="Heure de la journée (0-24h)", scale=alt.Scale(domain=[0, 24])),
+                        x2='heure_fin', # La barre va jusqu'ici
+                        y=alt.Y('ligne', title="Ligne"),
+                        color=alt.Color('frequentation:N', legend=alt.Legend(title="Charge")),
+                        tooltip=['ligne', 'tranche_horaire', 'frequentation']
+                    ).interactive()
+                    st.altair_chart(heatmap, use_container_width=True)
+                else:
+                    st.error("Erreur de lecture des horaires. Vérifiez le format des données.")
+                    st.write(df.head()) # Debug pour voir ce qui cloche
                     
         else:
+            # Code standard pour les autres stats (CP)
             col1, col2 = st.columns(2)
             with col1: st.metric("Total éléments", len(resultats_finaux))
             

@@ -417,22 +417,21 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
-            # 1. MAPPING COLONNES AVEC 'jour_semaine'
+            # 1. MAPPING COLONNES
             map_cols = {
                 'nom_court_ligne': 'ligne',
                 'niveau_frequentation_libelle': 'frequentation',
                 'tranche_horaire_libelle': 'tranche_horaire',
                 'jours_application_libelle': 'jour',
-                'jour_semaine': 'jour' # C'est ICI qu'on mappe ta colonne spécifique
+                'jour_semaine': 'jour' 
             }
             df = df.rename(columns=map_cols)
 
-            # 2. FILTRE DE PÉRIODE (JOUR) - ROBUSTE
-            # Si la colonne 'jour' n'est pas trouvée via le mapping, on cherche une colonne qui contient "jour"
+            # 2. FILTRE DE PÉRIODE (JOUR)
             if 'jour' not in df.columns:
                 cols_jour = [c for c in df.columns if "jour" in c.lower()]
                 if cols_jour:
-                    df['jour'] = df[cols_jour[0]] # On prend la première colonne qui ressemble à "jour"
+                    df['jour'] = df[cols_jour[0]]
 
             if 'jour' in df.columns:
                 périodes_dispo = df['jour'].unique().tolist()
@@ -440,8 +439,7 @@ with tab_stats:
                 df = df[df['jour'] == choix_jour]
                 st.success(f"Analyse filtrée pour : {choix_jour} ({len(df)} relevés)")
             else:
-                st.warning("⚠️ Impossible de trouver une colonne 'jour' pour filtrer la période.")
-                st.write("Colonnes disponibles :", list(df.columns))
+                st.warning("⚠️ Information 'jour' non trouvée.")
 
             # 3. Nettoyage
             if "frequentation" in df.columns:
@@ -458,11 +456,13 @@ with tab_stats:
                 df_clean = df[df['duree_heures'] > 0]
                 
                 if not df_clean.empty:
-                    st.write("### 🟢 Charge Totale (Heures Cumulées)")
+                    st.write("### 🟢 Répartition de la charge (%)")
+                    st.caption("Pour chaque ligne, quelle proportion du temps est calme (vert) ou chargée (rouge) ?")
                     
+                    # NOUVEAU GRAPHIQUE 1 : Horizontal Stacked 100%
                     chart = alt.Chart(df_clean).mark_bar().encode(
-                        x=alt.X('ligne', sort='-y', title="Ligne"),
-                        y=alt.Y('sum(duree_heures)', title="Heures Totales"),
+                        y=alt.Y('ligne', sort='descending', title="Ligne"),
+                        x=alt.X('sum(duree_heures)', stack='normalize', axis=alt.Axis(format='%'), title="Répartition du temps"),
                         color=alt.Color('frequentation:N', 
                                         scale=alt.Scale(
                                             domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],

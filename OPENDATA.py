@@ -83,13 +83,12 @@ CONFIG_VILLES = {
         "api_url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets",
         "cp_prefix": "35",
         "categories": {
-             # --- NOUVEAUTÉS RENNES ---
             "🅿️ Parkings (Citédia)": {
                 "api_id": "export-api-parking-citedia",
-                "col_titre": "key", # Nom du parking
+                "col_titre": "key", # Nom du parking souvent dans 'key'
                 "col_adresse": "organname",
                 "icone": "parking", "couleur": "blue",
-                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("total", "🔢 Total")]
+                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Total")]
             },
             "🚲 Stations Vélo Star (Temps réel)": {
                 "api_id": "etat-des-stations-le-velo-star-en-temps-reel",
@@ -118,13 +117,7 @@ CONFIG_VILLES = {
                 "col_adresse": "tranche_horaire",
                 "icone": "bar-chart", "couleur": "gray",
                 "infos_sup": [("frequentation", "👥 Charge"), ("jour_semaine", "📅 Jour")],
-                "no_map": True # Indicateur spécial pour dire "pas de carte"
-            },
-            "📅 Agenda du Territoire": {
-                "api_id": "agenda-du-territoire-de-rennes-metropole",
-                "col_titre": "titre", "col_adresse": "location_address",
-                "icone": "calendar", "couleur": "orange",
-                "infos_sup": [("debut", "📅 Début"), ("categorie", "🏷️ Catégorie")]
+                "no_map": True # Indicateur : Pas de carte pour ça
             }
         }
     }
@@ -207,6 +200,8 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    /* Style pour les expanders */
+    .streamlit-expanderHeader {font-weight: bold; color: #F63366;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -232,7 +227,7 @@ with st.sidebar:
     st.header("📍 Destination")
     ville_actuelle = st.selectbox("Choisir une ville :", list(CONFIG_VILLES.keys()))
     config_ville = CONFIG_VILLES[ville_actuelle]
-    choix_categories = config_ville["categories"]
+    all_categories = config_ville["categories"]
     
     st.divider()
     st.header("⚙️ Paramètres")
@@ -240,15 +235,40 @@ with st.sidebar:
     
     st.divider()
     st.header("🔍 Données")
-    choix_utilisateur = st.selectbox("Catégorie :", list(choix_categories.keys()))
     
+    # --- SEPARATION CARTES / STATS (NOUVEAU) ---
+    # On sépare les catégories en deux listes
+    cats_cartes = {k: v for k, v in all_categories.items() if not v.get("no_map")}
+    cats_stats = {k: v for k, v in all_categories.items() if v.get("no_map")}
+    
+    # Menu à boutons radio pour choisir le TYPE de visualisation
+    type_visu = st.radio("Type de visualisation :", ["🗺️ Cartes Interactives", "📊 Statistiques & Analyses"])
+    
+    choix_utilisateur = None
+    
+    if type_visu == "🗺️ Cartes Interactives":
+        # Affiche uniquement les datasets avec carte
+        choix_utilisateur = st.selectbox("Choisir une carte :", list(cats_cartes.keys()))
+    else:
+        # Affiche uniquement les datasets stats
+        if cats_stats:
+            choix_utilisateur = st.selectbox("Choisir une analyse :", list(cats_stats.keys()))
+        else:
+            st.info("Aucune donnée purement statistique pour cette ville.")
+            # Fallback pour éviter erreur si liste vide
+            choix_utilisateur = list(cats_cartes.keys())[0]
+
     st.divider()
-    st.header("🔎 Filtres")
-    mode_filtre = st.toggle("Filtrer par zone", value=False)
+    
+    # Filtre affiché seulement si Carte
+    mode_filtre = False
     filtre_texte = ""
-    if mode_filtre:
-        st.caption("Numéro d'arrondissement ou code postal.")
-        filtre_texte = st.text_input("Recherche :")
+    if type_visu == "🗺️ Cartes Interactives":
+        st.header("🔎 Filtres")
+        mode_filtre = st.toggle("Filtrer par zone", value=False)
+        if mode_filtre:
+            st.caption("Numéro d'arrondissement ou code postal.")
+            filtre_texte = st.text_input("Recherche :")
 
 # --- CHARGEMENT ---
 cle_unique = f"{ville_actuelle}_{choix_utilisateur}"
@@ -257,7 +277,7 @@ if cle_unique != st.session_state.dernier_choix:
         jouer_son_automatique(f"Chargement : {ville_actuelle}, {choix_utilisateur}")
     st.session_state.dernier_choix = cle_unique
 
-config_data = choix_categories[choix_utilisateur]
+config_data = all_categories[choix_utilisateur]
 
 with st.spinner(f"Chargement des données de {ville_actuelle}..."):
     limit_req = 200 if "agenda" in config_data["api_id"] or "que-faire" in config_data["api_id"] else 500
@@ -286,7 +306,8 @@ if len(tous_resultats) > 0:
             st.success(f"✅ Filtre actif : {len(resultats_finaux)} lieux.")
     else:
         resultats_finaux = tous_resultats
-        st.success(f"🌍 {ville_actuelle} : {len(resultats_finaux)} lieux trouvés.")
+        if type_visu == "🗺️ Cartes Interactives":
+            st.success(f"🌍 {ville_actuelle} : {len(resultats_finaux)} lieux trouvés.")
 else:
     st.info("Pas de données disponibles pour cette catégorie.")
 
@@ -294,10 +315,9 @@ else:
 tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
 
 with tab_carte:
-    # Cas spécial pour Fréquentation (pas de coordonnées)
+    # Si on est en mode stats pures ou pas de données, on prévient
     if config_data.get("no_map"):
-        st.warning("⚠️ Ce jeu de données ne contient pas de géolocalisation. Voir l'onglet Statistiques.")
-        st.image("https://cdn-icons-png.flaticon.com/512/235/235183.png", width=100) # Icône stats
+        st.info("ℹ️ Données statistiques uniquement. Voir l'onglet '📊 Statistiques'.")
     else:
         style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
         m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
@@ -306,11 +326,12 @@ with tab_carte:
         for site in resultats_finaux:
             lat, lon = None, None
             
-            # Gestion des différentes structures GPS (Standard, Geometry, Rennes Bus)
+            # --- BLOC DE DETECTION COORDONNEES ---
             geo = site.get("geo_point_2d")
             geom = site.get("geometry")
             lat_lon_special = site.get("lat_lon")
-            coords_rennes = site.get("coordonnees") # Pour Vélo Star et Bus
+            coords_rennes = site.get("coordonnees")
+            geo_rennes_parking = site.get("geo") # Format spécifique Parking Rennes [lat, lon]
             
             if geo: 
                 lat, lon = geo.get("lat"), geo.get("lon")
@@ -320,7 +341,10 @@ with tab_carte:
                 lat, lon = lat_lon_special.get("lat"), lat_lon_special.get("lon")
             elif coords_rennes and isinstance(coords_rennes, dict):
                 lat, lon = coords_rennes.get("lat"), coords_rennes.get("lon")
-                
+            elif geo_rennes_parking and isinstance(geo_rennes_parking, list) and len(geo_rennes_parking) == 2:
+                lat, lon = geo_rennes_parking[0], geo_rennes_parking[1]
+            # -------------------------------------
+
             if lat and lon:
                 coords_heatmap.append([lat, lon])
                 if style_vue == "📍 Points":
@@ -351,11 +375,10 @@ with tab_carte:
         if style_vue == "🔥 Densité" and coords_heatmap:
             HeatMap(coords_heatmap, radius=15).add_to(m)
         
-        # Affichage Carte
         if coords_heatmap or style_vue == "📍 Points":
             st_folium(m, width=1000, height=600)
         else:
-            st.info("Aucune coordonnée affichable trouvée.")
+            st.warning("⚠️ Aucune coordonnée GPS trouvée pour ces données.")
 
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
@@ -363,18 +386,16 @@ with tab_stats:
     with col1: st.metric("Total éléments", len(resultats_finaux))
     
     if len(resultats_finaux) > 0:
-        # Cas spécial Fréquentation Bus (Graphique custom)
+        # Cas spécial Fréquentation Bus
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             if "frequentation" in df.columns:
                 st.write("### Charge des lignes")
                 st.bar_chart(df["frequentation"].value_counts())
             if "ligne" in df.columns and "frequentation" in df.columns:
-                 # Petit tableau récapitulatif
                  st.write("### Détail par ligne")
                  st.dataframe(df[["ligne", "tranche_horaire", "frequentation", "jour_semaine"]])
         else:
-            # Graphique standard (Codes Postaux)
             liste_cp = []
             for s in resultats_finaux:
                 cp = extraire_cp_intelligent(s, config_data["col_adresse"], prefixe_cp=config_ville["cp_prefix"])

@@ -118,7 +118,7 @@ CONFIG_VILLES = {
                 "col_adresse": "tranche_horaire",
                 "icone": "bar-chart", "couleur": "gray",
                 "infos_sup": [("frequentation", "👥 Charge"), ("jour_semaine", "📅 Jour")],
-                "no_map": True
+                "no_map": True # Cet indicateur va servir à cacher l'onglet carte
             }
         }
     }
@@ -132,23 +132,19 @@ URL_LOGO = "logo_pulse.png"
 # ==========================================
 
 def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
-    """ Extrait le CP en fonction de la ville (75 ou 35) """
     cp_trouve = None
     regex = rf'{prefixe_cp}\d{{3}}'
-    
     for col in COLONNES_CP_A_SCANNER:
         val = str(site_data.get(col, ""))
         match = re.search(regex, val)
         if match:
             cp_trouve = match.group(0)
             break
-            
     if not cp_trouve:
         adresse = str(site_data.get(col_adresse_config, ""))
         match = re.search(regex, adresse)
         if match:
             cp_trouve = match.group(0)
-            
     if cp_trouve:
         if prefixe_cp == "75" and cp_trouve.startswith("751") and len(cp_trouve) == 5:
              return f"750{cp_trouve[3:]}"
@@ -304,14 +300,20 @@ if len(tous_resultats) > 0:
 else:
     st.info("Pas de données disponibles pour cette catégorie.")
 
-# --- AFFICHAGE ---
-tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
+# --- AFFICHAGE (ONGLETS DYNAMIQUES) ---
 
-with tab_carte:
-    if config_data.get("no_map"):
-        st.info("ℹ️ Données statistiques uniquement. Voir l'onglet '📊 Statistiques'.")
-        st.markdown("### 👉 Cette analyse ne contient pas de carte.")
-    else:
+# On regarde si on doit afficher l'onglet carte ou pas
+if config_data.get("no_map"):
+    # PAS DE CARTE : On crée seulement 2 onglets
+    tab_stats, tab_donnees = st.tabs(["📊 Statistiques", "📋 Données"])
+    tab_carte = None # On force à None pour ne pas l'utiliser
+else:
+    # CARTE NORMALE : On crée 3 onglets
+    tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
+
+# --- CONTENU ONGLET CARTE (Si il existe) ---
+if tab_carte:
+    with tab_carte:
         style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
         m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
         coords_heatmap = []
@@ -319,14 +321,11 @@ with tab_carte:
         for site in resultats_finaux:
             lat, lon = None, None
             
-            # --- DETECTION ROBUSTE DES COORDONNEES ---
             geo = site.get("geo_point_2d")
             geom = site.get("geometry")
             lat_lon_special = site.get("lat_lon")
-            # Nouveaux champs pour Rennes
             coords_rennes = site.get("coordonnees")
-            geo_rennes_parking = site.get("geo") # Peut être une liste ou une string
-            geoloc_rennes = site.get("geolocalisation") # Souvent un dict {lat, lon}
+            geo_rennes_parking = site.get("geo")
             
             if geo: 
                 lat, lon = geo.get("lat"), geo.get("lon")
@@ -336,10 +335,7 @@ with tab_carte:
                 lat, lon = lat_lon_special.get("lat"), lat_lon_special.get("lon")
             elif coords_rennes and isinstance(coords_rennes, dict):
                 lat, lon = coords_rennes.get("lat"), coords_rennes.get("lon")
-            elif geoloc_rennes and isinstance(geoloc_rennes, dict):
-                lat, lon = geoloc_rennes.get("lat"), geoloc_rennes.get("lon")
             elif geo_rennes_parking:
-                # Cas spécial Parking Rennes : parfois liste [lat, lon], parfois string
                 if isinstance(geo_rennes_parking, list) and len(geo_rennes_parking) == 2:
                     lat, lon = geo_rennes_parking[0], geo_rennes_parking[1]
                 elif isinstance(geo_rennes_parking, str) and "," in geo_rennes_parking:
@@ -347,7 +343,6 @@ with tab_carte:
                         parts = geo_rennes_parking.split(",")
                         lat, lon = float(parts[0]), float(parts[1])
                     except: pass
-            # -------------------------------------
 
             if lat and lon:
                 coords_heatmap.append([lat, lon])
@@ -383,11 +378,8 @@ with tab_carte:
             st_folium(m, width=1000, height=600)
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée pour ces données.")
-            # Debug pour aider si ça plante encore
-            if len(resultats_finaux) > 0:
-                with st.expander("🛠️ Voir les données brutes pour débug"):
-                    st.write(resultats_finaux[0])
 
+# --- CONTENU ONGLET STATS ---
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
     
@@ -395,21 +387,31 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
+            # Nettoyage des données manquantes pour la couleur grise
+            if "frequentation" in df.columns:
+                df["frequentation"] = df["frequentation"].fillna("Non ouverte")
+                df["frequentation"] = df["frequentation"].replace("", "Non ouverte")
+
             if "ligne" in df.columns and "frequentation" in df.columns:
-                st.write("### 🟢 Quelles sont les lignes les moins saturées ?")
-                st.write("Répartition des niveaux de charge (Faible vs Forte) par ligne.")
+                st.write("### 🟢 Répartition de la charge")
                 
+                # GRAPHIQUE AVEC COULEURS PERSONNALISÉES
                 chart = alt.Chart(df).mark_bar().encode(
                     x=alt.X('ligne', sort='-y', title="Ligne de Bus"),
                     y=alt.Y('count()', title="Nombre de relevés"),
+                    # ICI : La magie des couleurs
                     color=alt.Color('frequentation', 
-                                    scale=alt.Scale(scheme='spectral'), 
+                                    scale=alt.Scale(
+                                        domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],
+                                        range=['#2ecc71', '#f1c40f', '#e74c3c', '#95a5a6'] 
+                                        # Vert, Jaune, Rouge, Gris
+                                    ),
                                     legend=alt.Legend(title="Charge")),
                     tooltip=['ligne', 'frequentation', 'count()']
                 ).interactive()
                 st.altair_chart(chart, use_container_width=True)
                 
-                st.write("### 📅 À quelle heure y a-t-il du monde ? (Heatmap)")
+                st.write("### 📅 Heatmap Horaire")
                 if "tranche_horaire" in df.columns:
                     heatmap = alt.Chart(df).mark_rect().encode(
                         x=alt.X('tranche_horaire', title="Heure"),

@@ -128,48 +128,59 @@ COLONNES_CP_A_SCANNER = ["cp", "code_postal", "code_post", "zipcode", "commune",
 URL_LOGO = "logo_pulse.png" 
 
 # ==========================================
-# 2. FONCTIONS UTILES (Nouvelle fonction GPS Robuste)
+# 2. FONCTIONS UTILES (Parser d'heures)
 # ==========================================
 
-def recuperer_coordonnees(site):
+def parser_horaires_rennes(texte_horaire):
     """
-    Fonction 'Détective' qui cherche les coordonnées GPS partout
-    Retourne (lat, lon) ou (None, None)
+    Transforme '06h00-07h00' ou '6:00-7:00' en chiffres (6, 7)
+    pour que le graphique puisse tracer la durée.
     """
-    lat, lon = None, None
+    try:
+        # Nettoyage : on remplace 'h' par ':' et on coupe
+        if not isinstance(texte_horaire, str): return 0, 0
+        texte_clean = texte_horaire.lower().replace('h', ':').replace(' ', '')
+        
+        parts = texte_clean.split('-')
+        if len(parts) == 2:
+            debut_str = parts[0].split(':')[0] # On prend juste l'heure (ex: 16 de 16:30)
+            fin_str = parts[1].split(':')[0]
+            
+            debut = int(debut_str)
+            fin = int(fin_str)
+            
+            # Gestion de minuit (ex: 22h-01h -> 22 à 25)
+            if fin < debut:
+                fin += 24
+                
+            return debut, fin
+    except:
+        pass
+    return 0, 0
 
-    # 1. Structure GeoJSON standard (geometry -> coordinates [lon, lat])
+def recuperer_coordonnees(site):
+    """ Fonction 'Détective' qui cherche les coordonnées GPS partout """
+    lat, lon = None, None
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
         coords = geom.get("coordinates")
-        if coords and len(coords) == 2:
-            return coords[1], coords[0] # Attention: GeoJSON est Lon, Lat -> On veut Lat, Lon
+        if coords and len(coords) == 2: return coords[1], coords[0] 
 
-    # 2. Colonne 'geo_point_2d' (Paris souvent)
     geo = site.get("geo_point_2d")
-    if geo and isinstance(geo, dict):
-        return geo.get("lat"), geo.get("lon")
+    if geo and isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
 
-    # 3. Colonne 'lat_lon' (Que faire à Paris)
     lat_lon = site.get("lat_lon")
-    if lat_lon and isinstance(lat_lon, dict):
-        return lat_lon.get("lat"), lat_lon.get("lon")
+    if lat_lon and isinstance(lat_lon, dict): return lat_lon.get("lat"), lat_lon.get("lon")
 
-    # 4. Colonne 'geolocalisation' (Rennes Parking souvent)
     geoloc = site.get("geolocalisation")
-    if geoloc and isinstance(geoloc, dict):
-        return geoloc.get("lat"), geoloc.get("lon")
+    if geoloc and isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
     
-    # 5. Colonne 'coordonnees' (Rennes Vélo/Bus)
     coords_rennes = site.get("coordonnees")
-    if coords_rennes and isinstance(coords_rennes, dict):
-        return coords_rennes.get("lat"), coords_rennes.get("lon")
+    if coords_rennes and isinstance(coords_rennes, dict): return coords_rennes.get("lat"), coords_rennes.get("lon")
         
-    # 6. Colonnes explicites 'latitude' / 'longitude'
     if "latitude" in site and "longitude" in site:
         try: return float(site["latitude"]), float(site["longitude"])
         except: pass
-        
     return None, None
 
 def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
@@ -279,7 +290,6 @@ with st.sidebar:
     type_visu = st.radio("Type de visualisation :", ["🗺️ Cartes Interactives", "📊 Statistiques & Analyses"])
     
     choix_utilisateur = None
-    
     if type_visu == "🗺️ Cartes Interactives":
         choix_utilisateur = st.selectbox("Choisir une carte :", list(cats_cartes.keys()))
     else:
@@ -290,7 +300,6 @@ with st.sidebar:
             choix_utilisateur = list(cats_cartes.keys())[0]
 
     st.divider()
-    
     mode_filtre = False
     filtre_texte = ""
     if type_visu == "🗺️ Cartes Interactives":
@@ -341,14 +350,13 @@ if len(tous_resultats) > 0:
 else:
     st.info("Pas de données disponibles pour cette catégorie.")
 
-# --- AFFICHAGE (ONGLETS DYNAMIQUES) ---
+# --- AFFICHAGE ---
 if config_data.get("no_map"):
     tab_stats, tab_donnees = st.tabs(["📊 Statistiques", "📋 Données"])
     tab_carte = None 
 else:
     tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
 
-# --- CONTENU ONGLET CARTE ---
 if tab_carte:
     with tab_carte:
         style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
@@ -356,7 +364,6 @@ if tab_carte:
         coords_heatmap = []
         
         for site in resultats_finaux:
-            # APPEL DE LA FONCTION ROBUSTE
             lat, lon = recuperer_coordonnees(site)
 
             if lat and lon:
@@ -393,10 +400,7 @@ if tab_carte:
             st_folium(m, width=1000, height=600)
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée pour ces données.")
-            # Debug silencieux pour voir la structure si besoin
-            # st.write(resultats_finaux[0]) 
 
-# --- CONTENU ONGLET STATS ---
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
     
@@ -405,39 +409,38 @@ with tab_stats:
             df = pd.DataFrame(resultats_finaux)
             
             if "frequentation" in df.columns:
-                df["frequentation"] = df["frequentation"].fillna("Non ouverte")
-                df["frequentation"] = df["frequentation"].replace("", "Non ouverte")
+                df["frequentation"] = df["frequentation"].fillna("Inconnue")
+                df["frequentation"] = df["frequentation"].apply(lambda x: str(x).strip()) # Nettoyage
 
-            if "ligne" in df.columns and "frequentation" in df.columns:
-                st.write("### 🟢 Répartition de la charge")
+            if "ligne" in df.columns and "frequentation" in df.columns and "tranche_horaire" in df.columns:
                 
-                # --- CORRECTION COULEURS ALTAIR ---
-                # On utilise ':N' pour forcer le Nominal et s'assurer que l'échelle s'applique
+                # PREPARATION DONNEES TEMPORELLES
+                # On applique la fonction qui transforme "06h-07h" en [6, 7]
+                df[['heure_debut', 'heure_fin']] = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_rennes(x)))
+                
+                st.write("### 🟢 État de charge des lignes")
+                # Graphique 1 : Barres empilées
                 chart = alt.Chart(df).mark_bar().encode(
-                    x=alt.X('ligne', sort='-y', title="Ligne de Bus"),
-                    y=alt.Y('count()', title="Nombre de relevés"),
-                    color=alt.Color('frequentation:N', 
-                                    scale=alt.Scale(
-                                        domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],
-                                        range=['#2ecc71', '#f1c40f', '#e74c3c', '#95a5a6'] 
-                                    ),
-                                    legend=alt.Legend(title="Charge")),
+                    x=alt.X('ligne', sort='-y', title="Ligne"),
+                    y=alt.Y('count()', title="Nb Relevés"),
+                    # On laisse Altair gérer les couleurs automatiquement pour éviter les erreurs de mapping
+                    color=alt.Color('frequentation', legend=alt.Legend(title="Niveau Charge")),
                     tooltip=['ligne', 'frequentation', 'count()']
                 ).interactive()
                 st.altair_chart(chart, use_container_width=True)
                 
-                st.write("### 📅 Heatmap Horaire")
-                if "tranche_horaire" in df.columns:
-                    # --- CORRECTION COULEUR HEATMAP ---
-                    heatmap = alt.Chart(df).mark_rect().encode(
-                        x=alt.X('tranche_horaire', title="Heure"),
-                        y=alt.Y('ligne', title="Ligne"),
-                        color=alt.Color('count()', 
-                                        scale=alt.Scale(scheme='orangered'), # Dégradé Jaune -> Rouge
-                                        title="Densité"),
-                        tooltip=['ligne', 'tranche_horaire', 'count()']
-                    )
-                    st.altair_chart(heatmap, use_container_width=True)
+                st.write("### 📅 Disponibilité & Charge Horaire")
+                st.caption("La barre s'étend sur toute la durée de la tranche horaire.")
+                
+                # Graphique 2 : Heatmap étendue (Gantt style)
+                heatmap = alt.Chart(df).mark_bar().encode(
+                    x=alt.X('heure_debut', title="Heure (Début)", scale=alt.Scale(domain=[0, 24])),
+                    x2='heure_fin', # C'est ça qui fait la barre longue !
+                    y=alt.Y('ligne', title="Ligne"),
+                    color=alt.Color('frequentation', title="Charge"),
+                    tooltip=['ligne', 'tranche_horaire', 'frequentation']
+                ).interactive()
+                st.altair_chart(heatmap, use_container_width=True)
                     
         else:
             col1, col2 = st.columns(2)

@@ -114,10 +114,10 @@ CONFIG_VILLES = {
             },
             "📊 Fréquentation Lignes (Stats uniquement)": {
                 "api_id": "mkt-frequentation-niveau-freq-max-ligne",
-                "col_titre": "ligne", 
-                "col_adresse": "tranche_horaire",
+                "col_titre": "nom_court_ligne", # Nom probable API Rennes
+                "col_adresse": "tranche_horaire_libelle", 
                 "icone": "bar-chart", "couleur": "gray",
-                "infos_sup": [("frequentation", "👥 Charge"), ("jour_semaine", "📅 Jour")],
+                "infos_sup": [("niveau_frequentation_libelle", "👥 Charge"), ("tranche_horaire_libelle", "🕒 Heure")],
                 "no_map": True
             }
         }
@@ -133,54 +133,69 @@ URL_LOGO = "logo_pulse.png"
 
 def parser_horaires_robust(texte_horaire):
     """
-    Fonction très robuste qui extrait les deux premiers chiffres d'une chaîne.
-    Ex: "07h00 - 09h00" -> 7, 9
-    Ex: "18:30 à 20:00" -> 18, 20
+    Extrait les heures de début et fin depuis n'importe quel format.
+    Ex: "07:00:00 - 09:00:00" -> 7, 9
     """
     try:
-        # On cherche tous les nombres dans le texte
-        nums = [int(s) for s in re.findall(r'\d+', str(texte_horaire))]
+        if not isinstance(texte_horaire, str): return 0, 0, 0
         
-        if len(nums) >= 2:
-            debut = nums[0]
-            fin = nums[1] # On prend le 2ème chiffre trouvé comme fin (ex: 07 et 09)
+        # On extrait tous les nombres
+        nums = [int(s) for s in re.findall(r'\d+', texte_horaire)]
+        
+        debut, fin = 0, 0
+        
+        # Cas 1: "5h - 6h" (2 chiffres)
+        if len(nums) == 2:
+            debut, fin = nums[0], nums[1]
             
-            # Gestion basique des minutes : si on a 7, 00, 9, 00, on prend 1er et 3eme
-            # Pour l'instant on reste simple, on suppose format HH...HH
+        # Cas 2: "05:00 - 06:00" (4 chiffres)
+        elif len(nums) == 4:
+            debut, fin = nums[0], nums[2]
             
-            # Correction si fin < debut (ex: 22h - 01h)
+        # Cas 3: "05:00:00 - 06:00:00" (6 chiffres)
+        elif len(nums) >= 6:
+            debut, fin = nums[0], nums[3]
+            
+        # Calcul durée
+        duree = fin - debut
+        if fin < debut: # Passage minuit (22h - 01h)
+            fin += 24
             duree = fin - debut
-            if fin < debut:
-                fin += 24
-                duree = fin - debut
             
-            return debut, fin, duree
+        return debut, fin, duree
     except:
         pass
-    return None, None, 0
+    return 0, 0, 0
 
 def recuperer_coordonnees(site):
-    lat, lon = None, None
+    """ Fonction 'Détective' améliorée pour Parking Rennes """
+    # 1. GeoJSON / Geometry
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
         coords = geom.get("coordinates")
-        if coords and len(coords) == 2: return coords[1], coords[0] 
+        if coords and len(coords) == 2: return coords[1], coords[0] # [Lat, Lon]
 
-    geo = site.get("geo_point_2d")
-    if geo and isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
+    # 2. Colonnes standards
+    if "geo_point_2d" in site:
+        geo = site["geo_point_2d"]
+        if isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
+        if isinstance(geo, list) and len(geo) == 2: return geo[0], geo[1]
 
-    lat_lon = site.get("lat_lon")
-    if lat_lon and isinstance(lat_lon, dict): return lat_lon.get("lat"), lat_lon.get("lon")
-
+    # 3. Geolocalisation (Cas Parking Rennes souvent)
     geoloc = site.get("geolocalisation")
-    if geoloc and isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
+    if geoloc:
+        if isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
+        if isinstance(geoloc, list) and len(geoloc) == 2: return geoloc[0], geoloc[1]
     
-    coords_rennes = site.get("coordonnees")
-    if coords_rennes and isinstance(coords_rennes, dict): return coords_rennes.get("lat"), coords_rennes.get("lon")
+    # 4. Autres formats
+    if "coordonnees" in site:
+        c = site["coordonnees"]
+        if isinstance(c, dict): return c.get("lat"), c.get("lon")
         
     if "latitude" in site and "longitude" in site:
         try: return float(site["latitude"]), float(site["longitude"])
         except: pass
+        
     return None, None
 
 def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
@@ -219,7 +234,7 @@ def jouer_son_automatique(texte):
 
 @st.cache_data 
 def charger_donnees(base_url, api_id, cible=500):
-    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     url = f"{base_url}/{api_id}/records"
     tous_les_resultats = []
     
@@ -399,7 +414,7 @@ if tab_carte:
         if coords_heatmap or style_vue == "📍 Points":
             st_folium(m, width=1000, height=600)
         else:
-            st.warning("⚠️ Aucune coordonnée GPS trouvée pour ces données.")
+            st.warning("⚠️ Aucune coordonnée GPS trouvée (Vérifiez les données brutes).")
 
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
@@ -408,27 +423,36 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
-            # 1. Nettoyage et Gestion des données
+            # 🔄 1. STANDARDISATION DES COLONNES (Le fix magique)
+            # On renomme les colonnes techniques de Rennes en noms simples
+            map_cols = {
+                'nom_court_ligne': 'ligne',
+                'niveau_frequentation_libelle': 'frequentation',
+                'tranche_horaire_libelle': 'tranche_horaire'
+            }
+            df = df.rename(columns=map_cols)
+
+            # 2. Nettoyage
             if "frequentation" in df.columns:
                 df["frequentation"] = df["frequentation"].fillna("Non ouverte")
-                df["frequentation"] = df["frequentation"].apply(lambda x: str(x).strip() if x else "Non ouverte")
+                df["frequentation"] = df["frequentation"].replace("", "Non ouverte")
 
+            # 3. Traitement
             if "ligne" in df.columns and "frequentation" in df.columns and "tranche_horaire" in df.columns:
                 
-                # 2. Parsing Robuste des heures
-                # On applique la fonction pour créer 3 colonnes : Debut, Fin, Durée
+                # Parsing des heures avec fonction robuste
                 parsed_data = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(x)))
                 parsed_data.columns = ['heure_debut', 'heure_fin', 'duree_heures']
                 df = pd.concat([df, parsed_data], axis=1)
                 
-                # On enlève les lignes où le parsing a échoué (NaN)
-                df_clean = df.dropna(subset=['heure_debut', 'heure_fin'])
+                # Filtrer les erreurs
+                df_clean = df[df['duree_heures'] > 0]
                 
                 if not df_clean.empty:
-                    st.write("### 🟢 Cumul d'Heures par Niveau de Charge")
-                    st.caption("Le graphique montre combien d'heures au total la ligne est dans chaque état.")
+                    st.write("### 🟢 Charge Totale (en Heures Cumulées)")
+                    st.caption("Affiche la durée totale pendant laquelle une ligne est dans un état donné.")
                     
-                    # Graphique 1 : SOMME DE LA DUREE (et non count)
+                    # Graphique 1 : SOMME DUREE
                     chart = alt.Chart(df_clean).mark_bar().encode(
                         x=alt.X('ligne', sort='-y', title="Ligne"),
                         y=alt.Y('sum(duree_heures)', title="Heures Totales"),
@@ -442,24 +466,23 @@ with tab_stats:
                     ).interactive()
                     st.altair_chart(chart, use_container_width=True)
                     
-                    st.write("### 📅 Planning de Charge (Gantt)")
-                    st.caption("Visualisation temporelle des tranches horaires.")
+                    st.write("### 📅 Planning Visuel (Heatmap)")
+                    st.caption("Barres colorées selon la plage horaire d'ouverture.")
                     
-                    # Graphique 2 : GANTT (Barre de X à X2)
+                    # Graphique 2 : GANTT Vrai (X à X2)
                     heatmap = alt.Chart(df_clean).mark_bar().encode(
-                        x=alt.X('heure_debut', title="Heure de la journée (0-24h)", scale=alt.Scale(domain=[0, 24])),
-                        x2='heure_fin', # La barre va jusqu'ici
+                        x=alt.X('heure_debut', title="Heure (0h-24h)", scale=alt.Scale(domain=[0, 24])),
+                        x2='heure_fin', 
                         y=alt.Y('ligne', title="Ligne"),
-                        color=alt.Color('frequentation:N', legend=alt.Legend(title="Charge")),
+                        color=alt.Color('frequentation:N', title="Charge"),
                         tooltip=['ligne', 'tranche_horaire', 'frequentation']
                     ).interactive()
                     st.altair_chart(heatmap, use_container_width=True)
                 else:
-                    st.error("Erreur de lecture des horaires. Vérifiez le format des données.")
-                    st.write(df.head()) # Debug pour voir ce qui cloche
+                    st.warning("⚠️ Impossible de lire les horaires dans les données. Format inattendu.")
+                    st.write("Exemple de données reçues :", df[['tranche_horaire']].head())
                     
         else:
-            # Code standard pour les autres stats (CP)
             col1, col2 = st.columns(2)
             with col1: st.metric("Total éléments", len(resultats_finaux))
             

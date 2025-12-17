@@ -10,90 +10,103 @@ import pandas as pd
 import re
 
 # ==========================================
-# 1. CONFIGURATION (DONNÉES PARIS)
+# 1. CONFIGURATION MULTI-VILLES
 # ==========================================
-CHOIX_DISPONIBLES = {
-    "📅 Sorties & Événements": {
-        "api_id": "que-faire-a-paris-",
-        "col_titre": "title",
-        "col_adresse": "address_name",
-        "icone": "calendar", 
-        "couleur": "orange", 
-        "infos_sup": [
-            ("date_start", "📅 Date"),
-            ("price_type", "💶 Prix"),
-            ("lead_text", "ℹ️ Info")
-        ],
-        "image_col": "cover_url"
+
+# Configuration globale pour gérer plusieurs villes
+CONFIG_VILLES = {
+    "Paris 🗼": {
+        "coords_center": [48.8566, 2.3522],
+        "zoom_start": 12,
+        "api_url": "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets",
+        "cp_prefix": "75", # Pour filtrer les codes postaux
+        "categories": {
+            "📅 Sorties & Événements": {
+                "api_id": "que-faire-a-paris-",
+                "col_titre": "title", "col_adresse": "address_name",
+                "icone": "calendar", "couleur": "orange",
+                "infos_sup": [("date_start", "📅 Date"), ("price_type", "💶 Prix"), ("lead_text", "ℹ️ Info")],
+                "image_col": "cover_url"
+            },
+            "Bornes Wi-Fi": {
+                "api_id": "sites-disposant-du-service-paris-wi-fi",
+                "col_titre": "nom_site", "col_adresse": "arc_adresse",
+                "icone": "wifi", "couleur": "purple", 
+                "infos_sup": [("etat2", "✅ État"), ("cp", "📮 CP")]
+            },
+            "Sanisettes (Toilettes)": {
+                "api_id": "sanisettesparis",
+                "col_titre": "libelle", "col_adresse": "adresse",
+                "icone": "tint", "couleur": "blue", 
+                "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")]
+            },
+            "Chantiers Perturbants": {
+                "api_id": "chantiers-perturbants",
+                "col_titre": "objet", "col_adresse": "voie",
+                "icone": "exclamation-triangle", "couleur": "red", 
+                "infos_sup": [("date_fin", "📅 Fin"), ("impact_circulation", "🚗 Impact")]
+            }
+        }
     },
-    " 🛜 Bornes Wi-Fi": {
-        "api_id": "sites-disposant-du-service-paris-wi-fi",
-        "col_titre": "nom_site", "col_adresse": "arc_adresse",
-        "icone": "wifi", "couleur": "purple", "infos_sup": [("etat2", "✅ État"), ("cp", "📮 CP")]
-    },
-    " 🚽 Sanisettes (Toilettes)": {
-        "api_id": "sanisettesparis",
-        "col_titre": "libelle", "col_adresse": "adresse",
-        "icone": "tint", "couleur": "cadetblue", "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")]
-    },
-    " ⛲️ Fontaines à boire": {
-        "api_id": "fontaines-a-boire",
-        "col_titre": "voie", "col_adresse": "commune",
-        "icone": "tint", "couleur": "blue", "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")]
-    },
-    " 🏗️ Chantiers Perturbants": {
-        "api_id": "chantiers-perturbants",
-        "col_titre": "objet", "col_adresse": "voie",
-        "icone": "exclamation-triangle", "couleur": "red", "infos_sup": [("date_fin", "📅 Fin"), ("impact_circulation", "🚗 Impact")]
-    },
-    " 🔬 Laboratoires d'Analyses": {
-        "api_id": "laboratoires-danalyses-medicales",
-        "col_titre": "laboratoire", "col_adresse": "adresse",
-        "icone": "flask", "couleur": "orange", "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")]
-    },
-    " 🆘 Défibrillateurs": {
-        "api_id": "defibrillateurs",
-        "col_titre": "nom_etabl", "col_adresse": "adr_post",
-        "icone": "heartbeat", "couleur": "darkred", "infos_sup": [("acces_daw", "🚪 Accès")]
-    },
-    " 🏫 Collèges": {
-        "api_id": "etablissements-scolaires-colleges",
-        "col_titre": "libelle", "col_adresse": "adresse",
-        "icone": "graduation-cap", "couleur": "darkblue", "infos_sup": [("public_prive", "🏫 Secteur")]
-    },
-    " 🎓 Écoles Maternelles": {
-        "api_id": "etablissements-scolaires-maternelles",
-        "col_titre": "libelle", "col_adresse": "adresse",
-        "icone": "child", "couleur": "pink", "infos_sup": [("public_prive", "🏫 Secteur")]
+    "Rennes 🏁": {
+        "coords_center": [48.1172, -1.6777],
+        "zoom_start": 13,
+        "api_url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets",
+        "cp_prefix": "35",
+        "categories": {
+            "📅 Agenda du Territoire": {
+                "api_id": "agenda-du-territoire-de-rennes-metropole", # ID Dataset Rennes
+                "col_titre": "titre", 
+                "col_adresse": "location_address",
+                "icone": "calendar", "couleur": "orange",
+                "infos_sup": [("debut", "📅 Début"), ("categorie", "🏷️ Catégorie"), ("descriptif", "ℹ️ Info")],
+                 # Pas d'image facile sur cet API, mais on garde la logique
+            },
+            "🚌 Arrêts Bus & Métro (STAR)": {
+                "api_id": "arrets-et-stations-du-reseau-star",
+                "col_titre": "nom", 
+                "col_adresse": "commune", # Pas d'adresse précise, on met la commune
+                "icone": "bus", "couleur": "blue",
+                "infos_sup": [("mobilier", "🚏 Type"), ("acces_pmr", "♿ PMR")]
+            },
+            "🚽 Sanitaires Publics": {
+                "api_id": "topologie-des-sanitaires-publics",
+                "col_titre": "nom", 
+                "col_adresse": "adresse",
+                "icone": "tint", "couleur": "cadetblue",
+                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")]
+            }
+        }
     }
 }
 
-COLONNES_CP_A_SCANNER = ["cp", "cp_arrondissement", "code_postal", "code_post", "arondissement", "arrondissement", "arr_insee", "address_zipcode"]
-
-# --- MODIFICATION ICI : TON LOGO LOCAL ---
-URL_LOGO = "logo_pulse.png" 
-# -----------------------------------------
+COLONNES_CP_A_SCANNER = ["cp", "code_postal", "code_post", "zipcode", "commune", "location_address"]
+URL_LOGO = "logo_pulse.png" # Ton logo local
 
 # ==========================================
 # 2. FONCTIONS UTILES
 # ==========================================
 
-def extraire_cp_intelligent(site_data, col_adresse_config):
+def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
+    """ Extrait le CP en fonction de la ville (75 ou 35) """
     cp_trouve = None
+    # Regex dynamique : cherche 75xxx ou 35xxx
+    regex = rf'{prefixe_cp}\d{{3}}' 
+    
     for col in COLONNES_CP_A_SCANNER:
         val = str(site_data.get(col, ""))
-        match = re.search(r'75\d{3}', val)
+        match = re.search(regex, val)
         if match:
             cp_trouve = match.group(0)
             break
+            
     if not cp_trouve:
         adresse = str(site_data.get(col_adresse_config, ""))
-        match = re.search(r'75\d{3}', adresse)
+        match = re.search(regex, adresse)
         if match:
             cp_trouve = match.group(0)
+            
     if cp_trouve:
-        if cp_trouve.startswith("751") and len(cp_trouve) == 5:
-            return f"750{cp_trouve[3:]}"
         return cp_trouve
     return "Inconnu"
 
@@ -112,9 +125,10 @@ def jouer_son_automatique(texte):
         pass
 
 @st.cache_data 
-def charger_donnees(api_id, cible=500):
+def charger_donnees(base_url, api_id, cible=500):
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'}
-    url = f"https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/{api_id}/records"
+    # L'URL est maintenant dynamique selon la ville !
+    url = f"{base_url}/{api_id}/records"
     tous_les_resultats = []
     
     for offset in range(0, cible, 100):
@@ -132,7 +146,20 @@ def charger_donnees(api_id, cible=500):
 # ==========================================
 # 3. INTERFACE STREAMLIT
 # ==========================================
-st.set_page_config(page_title="Paris Pulse", page_icon="🗼", layout="wide")
+st.set_page_config(page_title="City Pulse", page_icon="🌍", layout="wide")
+
+# --- CSS PERSONNALISÉ ---
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;700&display=swap');
+    h1 { color: #F63366; font-family: 'Roboto', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+    h3, h4 { color: #262730; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+</style>
+""", unsafe_allow_html=True)
 
 if 'dernier_choix' not in st.session_state:
     st.session_state.dernier_choix = None
@@ -141,52 +168,63 @@ if 'dernier_choix' not in st.session_state:
 col_logo, col_titre = st.columns([2, 10])
 
 with col_logo:
-    # Affiche ton image locale (si elle est dans le dossier)
     try:
-        st.image(URL_LOGO, width=1500)
+        st.image(URL_LOGO, width=150)
     except:
-        st.warning("Image 'logo_pulse.png' introuvable.")
+        st.warning("Logo introuvable")
 
 with col_titre:
-    st.title("Paris Pulse")
-    st.markdown("#### Le tableau de bord intelligent de la capitale 🗼💓")
+    # Titre générique maintenant
+    st.title("City Pulse") 
+    st.markdown("#### Le tableau de bord intelligent de vos villes 🌍💓")
 
 st.divider()
 
-# --- SIDEBAR ---
+# --- SIDEBAR (SÉLECTEUR DE VILLE) ---
 with st.sidebar:
-    try:
-        st.image(URL_LOGO, width=60)
-    except:
-        pass # Pas d'erreur si l'image manque dans la sidebar
+    try: st.image(URL_LOGO, width=60)
+    except: pass
         
+    st.header("📍 Destination")
+    # 1. On choisit la ville D'ABORD
+    ville_actuelle = st.selectbox("Choisir une ville :", list(CONFIG_VILLES.keys()))
+    
+    # On charge la config de la ville choisie
+    config_ville = CONFIG_VILLES[ville_actuelle]
+    choix_categories = config_ville["categories"]
+    
+    st.divider()
     st.header("⚙️ Paramètres")
     activer_voix = st.checkbox("Activer l'assistant vocal", value=True)
-    st.divider()
-    st.header("🔍 Sélection")
-    choix_utilisateur = st.selectbox("Catégorie :", list(CHOIX_DISPONIBLES.keys()))
-    st.divider()
-    st.header("📍 Zone & Filtres")
-    mode_filtre = st.toggle("Activer le filtrage par zone", value=False)
     
+    st.divider()
+    st.header("🔍 Données")
+    # 2. Le menu catégorie s'adapte à la ville choisie
+    choix_utilisateur = st.selectbox("Catégorie :", list(choix_categories.keys()))
+    
+    st.divider()
+    st.header("🔎 Filtres")
+    mode_filtre = st.toggle("Filtrer par zone", value=False)
     filtre_texte = ""
     if mode_filtre:
-        st.caption("Tapez un numéro (ex: 13) ou un lieu (ex: Rivoli).")
+        st.caption("Numéro d'arrondissement ou code postal.")
         filtre_texte = st.text_input("Recherche :")
-    else:
-        st.info("Mode Carte Globale activé.")
 
 # --- LOGIQUE ---
-if choix_utilisateur != st.session_state.dernier_choix:
+# Détection changement pour voix
+cle_unique = f"{ville_actuelle}_{choix_utilisateur}"
+if cle_unique != st.session_state.dernier_choix:
     if activer_voix:
-        jouer_son_automatique(f"Chargement : {choix_utilisateur}")
-    st.session_state.dernier_choix = choix_utilisateur
+        jouer_son_automatique(f"Chargement : {ville_actuelle}, {choix_utilisateur}")
+    st.session_state.dernier_choix = cle_unique
 
-config = CHOIX_DISPONIBLES[choix_utilisateur]
+# Récupération de la config spécifique du dataset choisi
+config_data = choix_categories[choix_utilisateur]
 
-with st.spinner("Chargement des données..."):
-    limit_req = 200 if "que-faire" in config["api_id"] else 500
-    raw_data = charger_donnees(config["api_id"], cible=limit_req)
+with st.spinner(f"Chargement des données de {ville_actuelle}..."):
+    # On passe l'URL de base de la ville (Paris ou Rennes) à la fonction
+    limit_req = 200 if "agenda" in config_data["api_id"] or "que-faire" in config_data["api_id"] else 500
+    raw_data = charger_donnees(config_ville["api_url"], config_data["api_id"], cible=limit_req)
 
 tous_resultats = raw_data if isinstance(raw_data, list) else []
 
@@ -197,14 +235,12 @@ if len(tous_resultats) > 0:
         input_clean = filtre_texte.lower().strip()
         mots_a_chercher = []
         
+        # Logique CP simple (marche pour Paris 75013 et Rennes 35000)
         if input_clean.isdigit():
-            num = int(input_clean)
-            if 1 <= num <= 20:
-                mots_a_chercher.extend([f"750{num:02d}", f"751{num:02d}", f"{num}e", f"{num}ème"])
-        
-        if not mots_a_chercher: 
             mots_a_chercher.append(input_clean)
-        
+        else:
+            mots_a_chercher.append(input_clean)
+            
         for site in tous_resultats:
             trouve = False
             valeurs_texte = str(site.values()).lower()
@@ -221,16 +257,18 @@ if len(tous_resultats) > 0:
             st.success(f"✅ Filtre actif : {len(resultats_finaux)} lieux.")
     else:
         resultats_finaux = tous_resultats
-        st.success(f"🌍 Carte Globale : {len(resultats_finaux)} lieux.")
+        st.success(f"🌍 {ville_actuelle} : {len(resultats_finaux)} lieux trouvés.")
 else:
-    st.info("Pas de données.")
+    st.info("Pas de données disponibles pour cette catégorie.")
 
 # --- AFFICHAGE ---
 tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
 
 with tab_carte:
     style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
-    m = folium.Map(location=[48.8566, 2.3522], zoom_start=12)
+    
+    # CENTRAGE DYNAMIQUE SELON LA VILLE
+    m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
     coords_heatmap = []
     
     for site in resultats_finaux:
@@ -249,19 +287,19 @@ with tab_carte:
         if lat and lon:
             coords_heatmap.append([lat, lon])
             if style_vue == "📍 Points":
-                titre = site.get(config["col_titre"]) or "Lieu"
-                titre = titre.replace('"', '') 
-                adresse = site.get(config["col_adresse"]) or ""
+                titre = site.get(config_data["col_titre"]) or "Lieu"
+                titre = str(titre).replace('"', '') 
+                adresse = site.get(config_data["col_adresse"]) or ""
                 
                 html_image = ""
-                if "image_col" in config:
-                    url_img = site.get(config["image_col"])
+                if "image_col" in config_data:
+                    url_img = site.get(config_data["image_col"])
                     if isinstance(url_img, dict): url_img = url_img.get("url")
                     if url_img: html_image = f'<img src="{url_img}" width="200px" style="border-radius:5px; margin-bottom:10px;"><br>'
 
                 popup_content = f"{html_image}<b>{titre}</b><br><i>{adresse}</i>"
                 infos_html = ""
-                for k, v in config["infos_sup"]:
+                for k, v in config_data["infos_sup"]:
                     val = site.get(k)
                     if val: 
                         if len(str(val)) > 100: val = str(val)[:100] + "..."
@@ -270,7 +308,7 @@ with tab_carte:
 
                 folium.Marker(
                     [lat, lon], popup=folium.Popup(popup_content, max_width=250),
-                    icon=folium.Icon(color=config["couleur"], icon=config["icone"], prefix="fa")
+                    icon=folium.Icon(color=config_data["couleur"], icon=config_data["icone"], prefix="fa")
                 ).add_to(m)
 
     if style_vue == "🔥 Densité" and coords_heatmap:
@@ -279,23 +317,28 @@ with tab_carte:
     st_folium(m, width=1000, height=600)
 
 with tab_stats:
-    st.subheader("📊 Analyse")
+    st.subheader(f"📊 Analyse : {ville_actuelle}")
     col1, col2 = st.columns(2)
-    with col1: st.metric("Total", len(resultats_finaux))
+    with col1: st.metric("Total éléments", len(resultats_finaux))
     
     if len(resultats_finaux) > 0:
         liste_cp = []
         for s in resultats_finaux:
-            cp = extraire_cp_intelligent(s, config["col_adresse"])
+            # On utilise le préfixe de la ville (75 ou 35) pour l'extraction
+            cp = extraire_cp_intelligent(s, config_data["col_adresse"], prefixe_cp=config_ville["cp_prefix"])
             if cp == "Inconnu": cp = str(s.get("address_zipcode", "Inconnu"))
-            if cp != "Inconnu" and "75" in cp: liste_cp.append(cp)
+            
+            # On vérifie que le CP correspond bien à la ville (contient 75 ou 35)
+            if cp != "Inconnu" and config_ville["cp_prefix"] in cp: 
+                liste_cp.append(cp)
         
         if len(liste_cp) > 0:
-            df = pd.DataFrame(liste_cp, columns=["Arrondissement"])
-            compte = df["Arrondissement"].value_counts().sort_index()
+            df = pd.DataFrame(liste_cp, columns=["Zone / CP"])
+            compte = df["Zone / CP"].value_counts().sort_index()
             st.bar_chart(compte)
+            st.info("Répartition par Code Postal / Quartier.")
         else:
-            st.info("Graphique non disponible (Codes postaux non détectés).")
+            st.info("Données géographiques (CP) insuffisantes pour un graphique.")
 
 with tab_donnees:
     st.dataframe(resultats_finaux)

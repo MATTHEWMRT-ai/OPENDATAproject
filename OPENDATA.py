@@ -34,12 +34,12 @@ CHOIX_DISPONIBLES = {
     " 🚽 Sanisettes (Toilettes)": {
         "api_id": "sanisettesparis",
         "col_titre": "libelle", "col_adresse": "adresse",
-        "icone": "tint", "couleur": "blue", "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")]
+        "icone": "tint", "couleur": "cadetblue", "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")]
     },
     " ⛲️ Fontaines à boire": {
         "api_id": "fontaines-a-boire",
         "col_titre": "voie", "col_adresse": "commune",
-        "icone": "glass", "couleur": "cadetblue", "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")]
+        "icone": "tint", "couleur": "blue", "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")]
     },
     " 🏗️ Chantiers Perturbants": {
         "api_id": "chantiers-perturbants",
@@ -49,7 +49,7 @@ CHOIX_DISPONIBLES = {
     " 🔬 Laboratoires d'Analyses": {
         "api_id": "laboratoires-danalyses-medicales",
         "col_titre": "laboratoire", "col_adresse": "adresse",
-        "icone": "flask", "couleur": "green", "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")]
+        "icone": "flask", "couleur": "orange", "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")]
     },
     " 🆘 Défibrillateurs": {
         "api_id": "defibrillateurs",

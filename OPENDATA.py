@@ -83,23 +83,48 @@ CONFIG_VILLES = {
         "api_url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets",
         "cp_prefix": "35",
         "categories": {
+             # --- NOUVEAUTÉS RENNES ---
+            "🅿️ Parkings (Citédia)": {
+                "api_id": "export-api-parking-citedia",
+                "col_titre": "key", # Nom du parking
+                "col_adresse": "organname",
+                "icone": "parking", "couleur": "blue",
+                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("total", "🔢 Total")]
+            },
+            "🚲 Stations Vélo Star (Temps réel)": {
+                "api_id": "etat-des-stations-le-velo-star-en-temps-reel",
+                "col_titre": "nom", 
+                "col_adresse": "nom", 
+                "icone": "bicycle", "couleur": "red",
+                "infos_sup": [("nombrevelosdisponibles", "🚲 Vélos dispo"), ("nombreemplacementsdisponibles", "🅿️ Places dispo")]
+            },
+             "🚌 Bus en Circulation (Temps réel)": {
+                "api_id": "position-des-bus-en-circulation-sur-le-reseau-star-en-temps-reel",
+                "col_titre": "nomcourtligne", 
+                "col_adresse": "destination",
+                "icone": "bus", "couleur": "cadetblue",
+                "infos_sup": [("destination", "🏁 Vers"), ("ecartsecondes", "⏱️ Écart (sec)")]
+            },
+            "🚽 Toilettes Publiques": {
+                "api_id": "toilettes_publiques_vdr",
+                "col_titre": "nom_toilettes", 
+                "col_adresse": "voie",
+                "icone": "tint", "couleur": "green",
+                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")]
+            },
+            "📊 Fréquentation Lignes (Stats uniquement)": {
+                "api_id": "mkt-frequentation-niveau-freq-max-ligne",
+                "col_titre": "ligne", 
+                "col_adresse": "tranche_horaire",
+                "icone": "bar-chart", "couleur": "gray",
+                "infos_sup": [("frequentation", "👥 Charge"), ("jour_semaine", "📅 Jour")],
+                "no_map": True # Indicateur spécial pour dire "pas de carte"
+            },
             "📅 Agenda du Territoire": {
                 "api_id": "agenda-du-territoire-de-rennes-metropole",
                 "col_titre": "titre", "col_adresse": "location_address",
                 "icone": "calendar", "couleur": "orange",
-                "infos_sup": [("debut", "📅 Début"), ("categorie", "🏷️ Catégorie"), ("descriptif", "ℹ️ Info")],
-            },
-            "🚌 Arrêts Bus & Métro (STAR)": {
-                "api_id": "arrets-et-stations-du-reseau-star",
-                "col_titre": "nom", "col_adresse": "commune",
-                "icone": "bus", "couleur": "blue",
-                "infos_sup": [("mobilier", "🚏 Type"), ("acces_pmr", "♿ PMR")]
-            },
-            "🚽 Sanitaires Publics": {
-                "api_id": "topologie-des-sanitaires-publics",
-                "col_titre": "nom", "col_adresse": "adresse",
-                "icone": "tint", "couleur": "cadetblue",
-                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")]
+                "infos_sup": [("debut", "📅 Début"), ("categorie", "🏷️ Catégorie")]
             }
         }
     }
@@ -173,7 +198,6 @@ def charger_donnees(base_url, api_id, cible=500):
 # ==========================================
 st.set_page_config(page_title="City Pulse", page_icon="🌍", layout="wide")
 
-# --- CSS PERSONNALISÉ ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;700&display=swap');
@@ -189,9 +213,7 @@ st.markdown("""
 if 'dernier_choix' not in st.session_state:
     st.session_state.dernier_choix = None
 
-# --- EN-TÊTE PRINCIPAL ---
 col_logo, col_titre = st.columns([2, 10])
-
 with col_logo:
     try: st.image(URL_LOGO, width=150)
     except: st.warning("Logo introuvable")
@@ -209,7 +231,6 @@ with st.sidebar:
         
     st.header("📍 Destination")
     ville_actuelle = st.selectbox("Choisir une ville :", list(CONFIG_VILLES.keys()))
-    
     config_ville = CONFIG_VILLES[ville_actuelle]
     choix_categories = config_ville["categories"]
     
@@ -229,7 +250,7 @@ with st.sidebar:
         st.caption("Numéro d'arrondissement ou code postal.")
         filtre_texte = st.text_input("Recherche :")
 
-# --- LOGIQUE ---
+# --- CHARGEMENT ---
 cle_unique = f"{ville_actuelle}_{choix_utilisateur}"
 if cle_unique != st.session_state.dernier_choix:
     if activer_voix:
@@ -250,7 +271,6 @@ if len(tous_resultats) > 0:
     if mode_filtre and filtre_texte:
         input_clean = filtre_texte.lower().strip()
         mots_a_chercher = [input_clean]
-            
         for site in tous_resultats:
             trouve = False
             valeurs_texte = str(site.values()).lower()
@@ -260,7 +280,6 @@ if len(tous_resultats) > 0:
                     break
             if trouve:
                 resultats_finaux.append(site)
-        
         if not resultats_finaux:
             st.warning(f"⚠️ Aucun résultat pour '{filtre_texte}'")
         else:
@@ -275,54 +294,68 @@ else:
 tab_carte, tab_stats, tab_donnees = st.tabs(["🗺️ Carte", "📊 Statistiques", "📋 Données"])
 
 with tab_carte:
-    style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
-    m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
-    coords_heatmap = []
-    
-    for site in resultats_finaux:
-        lat, lon = None, None
-        geo = site.get("geo_point_2d")
-        geom = site.get("geometry")
-        lat_lon_special = site.get("lat_lon")
+    # Cas spécial pour Fréquentation (pas de coordonnées)
+    if config_data.get("no_map"):
+        st.warning("⚠️ Ce jeu de données ne contient pas de géolocalisation. Voir l'onglet Statistiques.")
+        st.image("https://cdn-icons-png.flaticon.com/512/235/235183.png", width=100) # Icône stats
+    else:
+        style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
+        m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
+        coords_heatmap = []
         
-        if geo: 
-            lat, lon = geo.get("lat"), geo.get("lon")
-        elif geom and geom.get("type") == "Point":
-            lon, lat = geom.get("coordinates")
-        elif lat_lon_special and isinstance(lat_lon_special, dict): 
-            lat, lon = lat_lon_special.get("lat"), lat_lon_special.get("lon")
+        for site in resultats_finaux:
+            lat, lon = None, None
             
-        if lat and lon:
-            coords_heatmap.append([lat, lon])
-            if style_vue == "📍 Points":
-                titre = site.get(config_data["col_titre"]) or "Lieu"
-                titre = str(titre).replace('"', '') 
-                adresse = site.get(config_data["col_adresse"]) or ""
+            # Gestion des différentes structures GPS (Standard, Geometry, Rennes Bus)
+            geo = site.get("geo_point_2d")
+            geom = site.get("geometry")
+            lat_lon_special = site.get("lat_lon")
+            coords_rennes = site.get("coordonnees") # Pour Vélo Star et Bus
+            
+            if geo: 
+                lat, lon = geo.get("lat"), geo.get("lon")
+            elif geom and geom.get("type") == "Point":
+                lon, lat = geom.get("coordinates")
+            elif lat_lon_special and isinstance(lat_lon_special, dict): 
+                lat, lon = lat_lon_special.get("lat"), lat_lon_special.get("lon")
+            elif coords_rennes and isinstance(coords_rennes, dict):
+                lat, lon = coords_rennes.get("lat"), coords_rennes.get("lon")
                 
-                html_image = ""
-                if "image_col" in config_data:
-                    url_img = site.get(config_data["image_col"])
-                    if isinstance(url_img, dict): url_img = url_img.get("url")
-                    if url_img: html_image = f'<img src="{url_img}" width="200px" style="border-radius:5px; margin-bottom:10px;"><br>'
+            if lat and lon:
+                coords_heatmap.append([lat, lon])
+                if style_vue == "📍 Points":
+                    titre = site.get(config_data["col_titre"]) or "Lieu"
+                    titre = str(titre).replace('"', '') 
+                    adresse = site.get(config_data["col_adresse"]) or ""
+                    
+                    html_image = ""
+                    if "image_col" in config_data:
+                        url_img = site.get(config_data["image_col"])
+                        if isinstance(url_img, dict): url_img = url_img.get("url")
+                        if url_img: html_image = f'<img src="{url_img}" width="200px" style="border-radius:5px; margin-bottom:10px;"><br>'
 
-                popup_content = f"{html_image}<b>{titre}</b><br><i>{adresse}</i>"
-                infos_html = ""
-                for k, v in config_data["infos_sup"]:
-                    val = site.get(k)
-                    if val: 
-                        if len(str(val)) > 100: val = str(val)[:100] + "..."
-                        infos_html += f"<br><b>{v}:</b> {val}"
-                popup_content += infos_html
+                    popup_content = f"{html_image}<b>{titre}</b><br><i>{adresse}</i>"
+                    infos_html = ""
+                    for k, v in config_data["infos_sup"]:
+                        val = site.get(k)
+                        if val: 
+                            if len(str(val)) > 100: val = str(val)[:100] + "..."
+                            infos_html += f"<br><b>{v}:</b> {val}"
+                    popup_content += infos_html
 
-                folium.Marker(
-                    [lat, lon], popup=folium.Popup(popup_content, max_width=250),
-                    icon=folium.Icon(color=config_data["couleur"], icon=config_data["icone"], prefix="fa")
-                ).add_to(m)
+                    folium.Marker(
+                        [lat, lon], popup=folium.Popup(popup_content, max_width=250),
+                        icon=folium.Icon(color=config_data["couleur"], icon=config_data["icone"], prefix="fa")
+                    ).add_to(m)
 
-    if style_vue == "🔥 Densité" and coords_heatmap:
-        HeatMap(coords_heatmap, radius=15).add_to(m)
-
-    st_folium(m, width=1000, height=600)
+        if style_vue == "🔥 Densité" and coords_heatmap:
+            HeatMap(coords_heatmap, radius=15).add_to(m)
+        
+        # Affichage Carte
+        if coords_heatmap or style_vue == "📍 Points":
+            st_folium(m, width=1000, height=600)
+        else:
+            st.info("Aucune coordonnée affichable trouvée.")
 
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
@@ -330,19 +363,31 @@ with tab_stats:
     with col1: st.metric("Total éléments", len(resultats_finaux))
     
     if len(resultats_finaux) > 0:
-        liste_cp = []
-        for s in resultats_finaux:
-            cp = extraire_cp_intelligent(s, config_data["col_adresse"], prefixe_cp=config_ville["cp_prefix"])
-            if cp == "Inconnu": cp = str(s.get("address_zipcode", "Inconnu"))
-            if cp != "Inconnu" and config_ville["cp_prefix"] in cp: 
-                liste_cp.append(cp)
-        
-        if len(liste_cp) > 0:
-            df = pd.DataFrame(liste_cp, columns=["Zone / CP"])
-            compte = df["Zone / CP"].value_counts().sort_index()
-            st.bar_chart(compte)
+        # Cas spécial Fréquentation Bus (Graphique custom)
+        if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
+            df = pd.DataFrame(resultats_finaux)
+            if "frequentation" in df.columns:
+                st.write("### Charge des lignes")
+                st.bar_chart(df["frequentation"].value_counts())
+            if "ligne" in df.columns and "frequentation" in df.columns:
+                 # Petit tableau récapitulatif
+                 st.write("### Détail par ligne")
+                 st.dataframe(df[["ligne", "tranche_horaire", "frequentation", "jour_semaine"]])
         else:
-            st.info("Données géographiques insuffisantes pour un graphique.")
+            # Graphique standard (Codes Postaux)
+            liste_cp = []
+            for s in resultats_finaux:
+                cp = extraire_cp_intelligent(s, config_data["col_adresse"], prefixe_cp=config_ville["cp_prefix"])
+                if cp == "Inconnu": cp = str(s.get("address_zipcode", "Inconnu"))
+                if cp != "Inconnu" and config_ville["cp_prefix"] in cp: 
+                    liste_cp.append(cp)
+            
+            if len(liste_cp) > 0:
+                df = pd.DataFrame(liste_cp, columns=["Zone / CP"])
+                compte = df["Zone / CP"].value_counts().sort_index()
+                st.bar_chart(compte)
+            else:
+                st.info("Données géographiques insuffisantes pour un graphique.")
 
 with tab_donnees:
     st.dataframe(resultats_finaux)

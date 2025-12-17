@@ -8,7 +8,7 @@ import base64
 import time
 import pandas as pd
 import re
-import altair as alt # NOUVEL IMPORT POUR LES GRAPHIQUES AVANCÉS
+import altair as alt
 
 # ==========================================
 # 1. CONFIGURATION MULTI-VILLES
@@ -319,11 +319,14 @@ with tab_carte:
         for site in resultats_finaux:
             lat, lon = None, None
             
+            # --- DETECTION ROBUSTE DES COORDONNEES ---
             geo = site.get("geo_point_2d")
             geom = site.get("geometry")
             lat_lon_special = site.get("lat_lon")
+            # Nouveaux champs pour Rennes
             coords_rennes = site.get("coordonnees")
-            geo_rennes_parking = site.get("geo")
+            geo_rennes_parking = site.get("geo") # Peut être une liste ou une string
+            geoloc_rennes = site.get("geolocalisation") # Souvent un dict {lat, lon}
             
             if geo: 
                 lat, lon = geo.get("lat"), geo.get("lon")
@@ -333,8 +336,18 @@ with tab_carte:
                 lat, lon = lat_lon_special.get("lat"), lat_lon_special.get("lon")
             elif coords_rennes and isinstance(coords_rennes, dict):
                 lat, lon = coords_rennes.get("lat"), coords_rennes.get("lon")
-            elif geo_rennes_parking and isinstance(geo_rennes_parking, list) and len(geo_rennes_parking) == 2:
-                lat, lon = geo_rennes_parking[0], geo_rennes_parking[1]
+            elif geoloc_rennes and isinstance(geoloc_rennes, dict):
+                lat, lon = geoloc_rennes.get("lat"), geoloc_rennes.get("lon")
+            elif geo_rennes_parking:
+                # Cas spécial Parking Rennes : parfois liste [lat, lon], parfois string
+                if isinstance(geo_rennes_parking, list) and len(geo_rennes_parking) == 2:
+                    lat, lon = geo_rennes_parking[0], geo_rennes_parking[1]
+                elif isinstance(geo_rennes_parking, str) and "," in geo_rennes_parking:
+                    try:
+                        parts = geo_rennes_parking.split(",")
+                        lat, lon = float(parts[0]), float(parts[1])
+                    except: pass
+            # -------------------------------------
 
             if lat and lon:
                 coords_heatmap.append([lat, lon])
@@ -370,12 +383,15 @@ with tab_carte:
             st_folium(m, width=1000, height=600)
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée pour ces données.")
+            # Debug pour aider si ça plante encore
+            if len(resultats_finaux) > 0:
+                with st.expander("🛠️ Voir les données brutes pour débug"):
+                    st.write(resultats_finaux[0])
 
 with tab_stats:
     st.subheader(f"📊 Analyse : {ville_actuelle}")
     
     if len(resultats_finaux) > 0:
-        # --- ANALYSE AVANCÉE POUR FRÉQUENTATION BUS (ALTAIR) ---
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
@@ -383,7 +399,6 @@ with tab_stats:
                 st.write("### 🟢 Quelles sont les lignes les moins saturées ?")
                 st.write("Répartition des niveaux de charge (Faible vs Forte) par ligne.")
                 
-                # Graphique empilé intelligent
                 chart = alt.Chart(df).mark_bar().encode(
                     x=alt.X('ligne', sort='-y', title="Ligne de Bus"),
                     y=alt.Y('count()', title="Nombre de relevés"),
@@ -405,7 +420,6 @@ with tab_stats:
                     st.altair_chart(heatmap, use_container_width=True)
                     
         else:
-            # Stats standards (Codes Postaux)
             col1, col2 = st.columns(2)
             with col1: st.metric("Total éléments", len(resultats_finaux))
             

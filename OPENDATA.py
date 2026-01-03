@@ -162,12 +162,44 @@ def parser_horaires_robust(texte_horaire):
     return 0, 0, 0
 
 def recuperer_coordonnees(site):
-    """ Fonction 'Détective' améliorée pour Parking Rennes """
+    """ 
+    Fonction 'Détective' améliorée pour gérer tous les cas :
+    - lat_lon (Paris Events)
+    - geo (Rennes Parking dict)
+    - coordonnees (Rennes Bus/Velo)
+    - geometry (GeoJSON standard)
+    """
+    
+    # 1. Cas spécifique : "lat_lon" (Demandé pour Paris Sorties)
+    if "lat_lon" in site:
+        ll = site["lat_lon"]
+        if isinstance(ll, dict):
+            return ll.get("lat"), ll.get("lon")
+    
+    # 2. Cas spécifique : "geo" (Demandé pour Parking Citédia)
+    if "geo" in site:
+        g = site["geo"]
+        if isinstance(g, dict): # Format {"lat": ..., "lon": ...}
+            return g.get("lat"), g.get("lon")
+        if isinstance(g, list) and len(g) == 2:
+            return g[0], g[1]
+
+    # 3. Cas classique Rennes / Opendatasoft : "coordonnees"
+    if "coordonnees" in site:
+        c = site["coordonnees"]
+        if isinstance(c, dict):
+            return c.get("lat"), c.get("lon")
+        if isinstance(c, list) and len(c) == 2:
+            return c[0], c[1]
+
+    # 4. Cas GeoJSON standard "geometry" (Point)
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
-        coords = geom.get("coordinates")
-        if coords and len(coords) == 2: return coords[1], coords[0] 
+        coords = geom.get("coordinates") # Attention : GeoJSON est [lon, lat]
+        if coords and len(coords) == 2: 
+            return coords[1], coords[0] 
 
+    # 5. Autres variantes courantes
     if "geo_point_2d" in site:
         geo = site["geo_point_2d"]
         if isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
@@ -177,14 +209,6 @@ def recuperer_coordonnees(site):
     if geoloc:
         if isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
         if isinstance(geoloc, list) and len(geoloc) == 2: return geoloc[0], geoloc[1]
-    
-    if "coordonnees" in site:
-        c = site["coordonnees"]
-        if isinstance(c, dict): return c.get("lat"), c.get("lon")
-    
-    if "geo" in site:
-         g = site["geo"]
-         if isinstance(g, list) and len(g) == 2: return g[0], g[1]
         
     if "latitude" in site and "longitude" in site:
         try: return float(site["latitude"]), float(site["longitude"])
@@ -222,7 +246,8 @@ def jouer_son_automatique(texte):
             b64 = base64.b64encode(data).decode()
         md = f"""<audio autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>"""
         st.sidebar.markdown(md, unsafe_allow_html=True)
-        time.sleep(2)
+        # Délai légèrement réduit pour fluidifier, mais nécessaire pour l'audio
+        time.sleep(1) 
     except:
         pass
 
@@ -406,7 +431,8 @@ if tab_carte:
             HeatMap(coords_heatmap, radius=15).add_to(m)
         
         if coords_heatmap or style_vue == "📍 Points":
-            st_folium(m, width=1000, height=600)
+            # MODIFICATION ICI POUR EVITER LE RAFRAICHISSEMENT
+            st_folium(m, width=1000, height=600, returned_objects=[])
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée (Vérifiez les données brutes).")
 

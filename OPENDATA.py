@@ -240,7 +240,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialisation Session State
+# Initialisation Session State (Si pas encore fait)
 if 'ville_select' not in st.session_state:
     st.session_state.ville_select = "Paris 🗼"
 if 'cat_select' not in st.session_state:
@@ -266,7 +266,7 @@ with st.sidebar:
     try: st.image(URL_LOGO, width=60)
     except: pass
     
-    # === MOTEUR DE RECHERCHE GLOBAL ===
+    # === MOTEUR DE RECHERCHE ===
     st.header("🔍 Recherche Rapide")
     search_query = st.text_input("Ex: 'Bus Rennes', 'Wifi Paris'...", key="search_box")
     
@@ -275,19 +275,26 @@ with st.sidebar:
         found_ville = None
         found_cat = None
         
+        # 1. Identification Ville
         if "rennes" in q or "35" in q: found_ville = "Rennes 🏁"
         elif "paris" in q or "75" in q: found_ville = "Paris 🗼"
         if not found_ville: found_ville = st.session_state.ville_select
 
+        # 2. Identification Catégorie
         cats_dispo = CONFIG_VILLES[found_ville]["categories"]
         for cat_name in cats_dispo.keys():
             keywords = cat_name.lower().split()
             if any(k in q for k in keywords if len(k) > 3): found_cat = cat_name
             if "bus" in q and "bus" in cat_name.lower(): found_cat = cat_name
             if "wifi" in q and "wi-fi" in cat_name.lower(): found_cat = cat_name
+            if "frequentation" in q and "frequentation" in cat_name.lower(): found_cat = cat_name
         
+        # 3. Application du changement (FORCE LES WIDGETS)
         if found_ville:
+            # Mise à jour des variables logiques
             st.session_state.ville_select = found_ville
+            
+            # Gestion catégorie par défaut si non trouvée
             if not found_cat:
                  if st.session_state.cat_select in CONFIG_VILLES[found_ville]["categories"]:
                      found_cat = st.session_state.cat_select
@@ -295,24 +302,35 @@ with st.sidebar:
                      found_cat = list(CONFIG_VILLES[found_ville]["categories"].keys())[0]
             st.session_state.cat_select = found_cat
             
+            # Gestion mode Visu
+            nouveau_visu = "🗺️ Cartes Interactives"
             if CONFIG_VILLES[found_ville]["categories"][found_cat].get("no_map"):
-                st.session_state.visu_select = "📊 Statistiques & Analyses"
-            else:
-                st.session_state.visu_select = "🗺️ Cartes Interactives"
+                nouveau_visu = "📊 Statistiques & Analyses"
+            st.session_state.visu_select = nouveau_visu
+
+            # --- ICI LA CORRECTION MAGIQUE ---
+            # On met à jour les clés internes des widgets pour qu'ils changent visuellement
+            st.session_state.widget_ville = found_ville
+            st.session_state.widget_visu = nouveau_visu
+            st.session_state.widget_cat = found_cat
                 
             st.success(f"📍 Navigation vers : {found_ville} - {found_cat}")
-            time.sleep(1) # Temps de lecture
-            st.rerun() # FORÇAGE DU RECHARGEMENT
+            time.sleep(1) 
+            st.rerun() # Refresh pour afficher
 
     st.divider()
     
+    # === SÉLECTEURS ===
     st.header("📍 Destination")
+    
+    # Selectbox VILLE
     ville_actuelle = st.selectbox(
         "Choisir une ville :", 
         list(CONFIG_VILLES.keys()),
         index=list(CONFIG_VILLES.keys()).index(st.session_state.ville_select),
         key="widget_ville"
     )
+    # Synchro manuelle
     if ville_actuelle != st.session_state.ville_select:
         st.session_state.ville_select = ville_actuelle
         st.session_state.cat_select = list(CONFIG_VILLES[ville_actuelle]["categories"].keys())[0]
@@ -328,20 +346,7 @@ with st.sidebar:
     st.divider()
     st.header("🔍 Données")
     
-    cats_cartes = {k: v for k, v in all_categories.items() if not v.get("no_map")}
-    cats_stats = {k: v for k, v in all_categories.items() if v.get("no_map")}
-    
-    options_cat = []
-    if st.session_state.visu_select == "🗺️ Cartes Interactives":
-        options_cat = list(cats_cartes.keys())
-    else:
-        options_cat = list(cats_stats.keys()) if cats_stats else list(cats_cartes.keys())
-
-    index_cat = 0
-    if st.session_state.cat_select in options_cat:
-        index_cat = options_cat.index(st.session_state.cat_select)
-    
-    # SÉLECTION TYPE VISU
+    # Selectbox VISUALISATION
     type_visu = st.radio(
         "Type de visualisation :", 
         ["🗺️ Cartes Interactives", "📊 Statistiques & Analyses"],
@@ -352,7 +357,22 @@ with st.sidebar:
         st.session_state.visu_select = type_visu
         st.rerun()
 
-    # SÉLECTION CATÉGORIE
+    # Filtre catégories selon visu
+    cats_cartes = {k: v for k, v in all_categories.items() if not v.get("no_map")}
+    cats_stats = {k: v for k, v in all_categories.items() if v.get("no_map")}
+    
+    options_cat = []
+    if st.session_state.visu_select == "🗺️ Cartes Interactives":
+        options_cat = list(cats_cartes.keys())
+    else:
+        options_cat = list(cats_stats.keys()) if cats_stats else list(cats_cartes.keys())
+
+    # Calcul index safe
+    index_cat = 0
+    if st.session_state.cat_select in options_cat:
+        index_cat = options_cat.index(st.session_state.cat_select)
+    
+    # Selectbox CATÉGORIE
     choix_utilisateur = st.selectbox(
         "Choisir une donnée :", 
         options_cat,

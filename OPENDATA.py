@@ -11,7 +11,7 @@ import re
 import altair as alt
 
 # ==========================================
-# 1. CONFIGURATION MULTI-VILLES
+# 1. CONFIGURATION MULTI-VILLES & MOTS-CLÉS
 # ==========================================
 
 CONFIG_VILLES = {
@@ -20,61 +20,71 @@ CONFIG_VILLES = {
         "zoom_start": 12,
         "api_url": "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets",
         "cp_prefix": "75",
+        "alias": ["paris", "paname", "75"],  # Mots-clés pour trouver la ville
         "categories": {
             "📅 Sorties & Événements": {
                 "api_id": "que-faire-a-paris-",
                 "col_titre": "title", "col_adresse": "address_name",
                 "icone": "calendar", "couleur": "orange",
                 "infos_sup": [("date_start", "📅 Date"), ("price_type", "💶 Prix"), ("lead_text", "ℹ️ Info")],
-                "image_col": "cover_url"
+                "image_col": "cover_url",
+                "mots_cles": ["sorties", "evenements", "concert", "expo", "agenda", "culture"]
             },
             "Bornes Wi-Fi": {
                 "api_id": "sites-disposant-du-service-paris-wi-fi",
                 "col_titre": "nom_site", "col_adresse": "arc_adresse",
                 "icone": "wifi", "couleur": "purple", 
-                "infos_sup": [("etat2", "✅ État"), ("cp", "📮 CP")]
+                "infos_sup": [("etat2", "✅ État"), ("cp", "📮 CP")],
+                "mots_cles": ["wifi", "internet", "web", "connection"]
             },
             "Sanisettes (Toilettes)": {
                 "api_id": "sanisettesparis",
                 "col_titre": "libelle", "col_adresse": "adresse",
                 "icone": "tint", "couleur": "blue", 
-                "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")]
+                "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")],
+                "mots_cles": ["toilettes", "wc", "sanisettes", "pipi"]
             },
             "Fontaines à boire": {
                 "api_id": "fontaines-a-boire",
                 "col_titre": "voie", "col_adresse": "commune",
                 "icone": "glass", "couleur": "cadetblue", 
-                "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")]
+                "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
+                "mots_cles": ["eau", "boire", "fontaine", "soif"]
             },
             "Chantiers Perturbants": {
                 "api_id": "chantiers-perturbants",
                 "col_titre": "objet", "col_adresse": "voie",
                 "icone": "exclamation-triangle", "couleur": "red", 
-                "infos_sup": [("date_fin", "📅 Fin"), ("impact_circulation", "🚗 Impact")]
+                "infos_sup": [("date_fin", "📅 Fin"), ("impact_circulation", "🚗 Impact")],
+                "mots_cles": ["travaux", "chantier", "route", "circulation"]
             },
             "Laboratoires d'Analyses": {
                 "api_id": "laboratoires-danalyses-medicales",
                 "col_titre": "laboratoire", "col_adresse": "adresse",
                 "icone": "flask", "couleur": "green", 
-                "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")]
+                "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")],
+                "mots_cles": ["sante", "medecin", "laboratoire", "analyse", "sang"]
             },
             "Défibrillateurs": {
                 "api_id": "defibrillateurs",
                 "col_titre": "nom_etabl", "col_adresse": "adr_post",
                 "icone": "heartbeat", "couleur": "darkred", 
-                "infos_sup": [("acces_daw", "🚪 Accès")]
+                "infos_sup": [("acces_daw", "🚪 Accès")],
+                "mots_cles": ["coeur", "defibrillateur", "urgence", "secours"]
             },
             "Collèges": {
                 "api_id": "etablissements-scolaires-colleges",
                 "col_titre": "libelle", "col_adresse": "adresse",
                 "icone": "graduation-cap", "couleur": "darkblue", 
-                "infos_sup": [("public_prive", "🏫 Secteur")]
+                "infos_sup": [("public_prive", "🏫 Secteur")],
+                "mots_cles": ["ecole", "college", "education", "scolaire"]
             },
             "Écoles Maternelles": {
                 "api_id": "etablissements-scolaires-maternelles",
                 "col_titre": "libelle", "col_adresse": "adresse",
                 "icone": "child", "couleur": "pink", 
-                "infos_sup": [("public_prive", "🏫 Secteur")]
+                "infos_sup": [("public_prive", "🏫 Secteur")],
+                "mots_cles": ["ecole", "maternelle", "enfant", "bebe"]
             }
         }
     },
@@ -83,34 +93,39 @@ CONFIG_VILLES = {
         "zoom_start": 13,
         "api_url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets",
         "cp_prefix": "35",
+        "alias": ["rennes", "bretagne", "35"],
         "categories": {
             "🅿️ Parkings (Citédia)": {
                 "api_id": "export-api-parking-citedia",
                 "col_titre": "key",
                 "col_adresse": "organname",
                 "icone": "parking", "couleur": "blue",
-                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Total")]
+                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Total")],
+                "mots_cles": ["parking", "garer", "voiture", "stationnement", "auto"]
             },
             "🚲 Stations Vélo Star (Temps réel)": {
                 "api_id": "etat-des-stations-le-velo-star-en-temps-reel",
                 "col_titre": "nom", 
                 "col_adresse": "nom", 
                 "icone": "bicycle", "couleur": "red",
-                "infos_sup": [("nombrevelosdisponibles", "🚲 Vélos dispo"), ("nombreemplacementsdisponibles", "🅿️ Places dispo")]
+                "infos_sup": [("nombrevelosdisponibles", "🚲 Vélos dispo"), ("nombreemplacementsdisponibles", "🅿️ Places dispo")],
+                "mots_cles": ["velo", "bicyclette", "cyclisme", "star"]
             },
              "🚌 Bus en Circulation (Temps réel)": {
                 "api_id": "position-des-bus-en-circulation-sur-le-reseau-star-en-temps-reel",
                 "col_titre": "nomcourtligne", 
                 "col_adresse": "destination",
                 "icone": "bus", "couleur": "cadetblue",
-                "infos_sup": [("destination", "🏁 Vers"), ("ecartsecondes", "⏱️ Écart (sec)")]
+                "infos_sup": [("destination", "🏁 Vers"), ("ecartsecondes", "⏱️ Écart (sec)")],
+                "mots_cles": ["bus", "transport", "commun", "star"]
             },
             "🚽 Toilettes Publiques": {
                 "api_id": "toilettes_publiques_vdr",
                 "col_titre": "nom_toilettes", 
                 "col_adresse": "voie",
                 "icone": "tint", "couleur": "green",
-                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")]
+                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")],
+                "mots_cles": ["toilettes", "wc", "pipi"]
             },
             "📊 Fréquentation Lignes (Stats uniquement)": {
                 "api_id": "mkt-frequentation-niveau-freq-max-ligne",
@@ -118,7 +133,8 @@ CONFIG_VILLES = {
                 "col_adresse": "tranche_horaire_libelle", 
                 "icone": "bar-chart", "couleur": "gray",
                 "infos_sup": [("niveau_frequentation_libelle", "👥 Charge"), ("tranche_horaire_libelle", "🕒 Heure")],
-                "no_map": True
+                "no_map": True,
+                "mots_cles": ["stats", "frequentation", "monde", "charge"]
             }
         }
     }
@@ -128,78 +144,91 @@ COLONNES_CP_A_SCANNER = ["cp", "code_postal", "code_post", "zipcode", "commune",
 URL_LOGO = "logo_pulse.png" 
 
 # ==========================================
-# 2. FONCTIONS UTILES
+# 2. FONCTIONS UTILES & RECHERCHE
 # ==========================================
 
+def moteur_recherche(requete, config):
+    """
+    Cherche une ville et une catégorie basées sur les mots-clés.
+    Retourne (ville_trouvee, categorie_trouvee) ou (None, None).
+    """
+    requete = requete.lower().strip()
+    ville_trouvee = None
+    cat_trouvee = None
+
+    # 1. Identifier la ville
+    for ville_nom, ville_data in config.items():
+        mots_ville = [ville_nom.lower().split()[0]] + ville_data.get("alias", [])
+        if any(mot in requete for mot in mots_ville):
+            ville_trouvee = ville_nom
+            break
+    
+    # Si pas de ville trouvée, on ne peut pas deviner la catégorie (car elles dépendent de la ville)
+    # On pourrait améliorer ça en cherchant dans toutes les villes, mais restons simple pour l'instant.
+    if not ville_trouvee:
+        # Essai de trouver juste la catégorie dans la ville actuelle (si gérée hors de cette fonction)
+        # Ici on retourne None pour forcer une recherche précise "Ville + Mot clé" ou juste "Ville"
+        pass
+
+    # 2. Identifier la catégorie DANS la ville trouvée (ou chercher globalement si on voulait)
+    if ville_trouvee:
+        categories = config[ville_trouvee]["categories"]
+        for cat_nom, cat_data in categories.items():
+            mots_cat = [cat_nom.lower()] + cat_data.get("mots_cles", [])
+            # Nettoyage simple
+            if any(k in requete for k in mots_cat):
+                cat_trouvee = cat_nom
+                break
+            
+    return ville_trouvee, cat_trouvee
+
 def parser_horaires_robust(texte_horaire):
-    """
-    Extrait les heures de début et fin depuis n'importe quel format.
-    Ex: "07:00:00 - 09:00:00" -> 7, 9
-    """
     try:
         if not isinstance(texte_horaire, str): return 0, 0, 0
-        
-        # On extrait tous les nombres
         nums = [int(s) for s in re.findall(r'\d+', texte_horaire)]
-        
         debut, fin = 0, 0
-        
         if len(nums) == 2:
             debut, fin = nums[0], nums[1]
         elif len(nums) == 4:
             debut, fin = nums[0], nums[2]
         elif len(nums) >= 6:
             debut, fin = nums[0], nums[3]
-            
         duree = fin - debut
         if fin < debut: 
             fin += 24
             duree = fin - debut
-            
         return debut, fin, duree
     except:
         pass
     return 0, 0, 0
 
 def recuperer_coordonnees(site):
-    """ 
-    Fonction 'Détective' améliorée pour gérer tous les cas :
-    - lat_lon (Paris Events)
-    - geo (Rennes Parking dict)
-    - coordonnees (Rennes Bus/Velo)
-    - geometry (GeoJSON standard)
-    """
+    """ Gestion complète des formats de coordonnées (Paris/Rennes/GeoJSON) """
     
-    # 1. Cas spécifique : "lat_lon" (Demandé pour Paris Sorties)
+    # 1. Paris Sorties : "lat_lon": {"lat": ..., "lon": ...}
     if "lat_lon" in site:
         ll = site["lat_lon"]
-        if isinstance(ll, dict):
-            return ll.get("lat"), ll.get("lon")
+        if isinstance(ll, dict): return ll.get("lat"), ll.get("lon")
     
-    # 2. Cas spécifique : "geo" (Demandé pour Parking Citédia)
+    # 2. Rennes Parking : "geo": {"lat": ..., "lon": ...}
     if "geo" in site:
         g = site["geo"]
-        if isinstance(g, dict): # Format {"lat": ..., "lon": ...}
-            return g.get("lat"), g.get("lon")
-        if isinstance(g, list) and len(g) == 2:
-            return g[0], g[1]
+        if isinstance(g, dict): return g.get("lat"), g.get("lon")
+        if isinstance(g, list) and len(g) == 2: return g[0], g[1]
 
-    # 3. Cas classique Rennes / Opendatasoft : "coordonnees"
+    # 3. Rennes Bus/Velo : "coordonnees"
     if "coordonnees" in site:
         c = site["coordonnees"]
-        if isinstance(c, dict):
-            return c.get("lat"), c.get("lon")
-        if isinstance(c, list) and len(c) == 2:
-            return c[0], c[1]
+        if isinstance(c, dict): return c.get("lat"), c.get("lon")
+        if isinstance(c, list) and len(c) == 2: return c[0], c[1]
 
-    # 4. Cas GeoJSON standard "geometry" (Point)
+    # 4. GeoJSON standard : "geometry": {"coordinates": [lon, lat]}
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
-        coords = geom.get("coordinates") # Attention : GeoJSON est [lon, lat]
-        if coords and len(coords) == 2: 
-            return coords[1], coords[0] 
+        coords = geom.get("coordinates")
+        if coords and len(coords) == 2: return coords[1], coords[0] 
 
-    # 5. Autres variantes courantes
+    # 5. Fallbacks
     if "geo_point_2d" in site:
         geo = site["geo_point_2d"]
         if isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
@@ -209,10 +238,6 @@ def recuperer_coordonnees(site):
     if geoloc:
         if isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
         if isinstance(geoloc, list) and len(geoloc) == 2: return geoloc[0], geoloc[1]
-        
-    if "latitude" in site and "longitude" in site:
-        try: return float(site["latitude"]), float(site["longitude"])
-        except: pass
         
     return None, None
 
@@ -246,7 +271,6 @@ def jouer_son_automatique(texte):
             b64 = base64.b64encode(data).decode()
         md = f"""<audio autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>"""
         st.sidebar.markdown(md, unsafe_allow_html=True)
-        # Délai légèrement réduit pour fluidifier, mais nécessaire pour l'audio
         time.sleep(1) 
     except:
         pass
@@ -270,7 +294,7 @@ def charger_donnees(base_url, api_id, cible=500):
     return tous_les_resultats
 
 # ==========================================
-# 3. INTERFACE STREAMLIT
+# 3. INITIALISATION & SIDEBAR
 # ==========================================
 st.set_page_config(page_title="City Pulse", page_icon="🌍", layout="wide")
 
@@ -283,10 +307,14 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
-    .streamlit-expanderHeader {font-weight: bold; color: #F63366;}
 </style>
 """, unsafe_allow_html=True)
 
+# --- INIT SESSION STATE ---
+if 'ville_selectionnee' not in st.session_state:
+    st.session_state.ville_selectionnee = list(CONFIG_VILLES.keys())[0]
+if 'cat_selectionnee' not in st.session_state:
+    st.session_state.cat_selectionnee = list(CONFIG_VILLES[st.session_state.ville_selectionnee]["categories"].keys())[0]
 if 'dernier_choix' not in st.session_state:
     st.session_state.dernier_choix = None
 
@@ -301,56 +329,90 @@ with col_titre:
 
 st.divider()
 
-# --- SIDEBAR ---
+# --- SIDEBAR & RECHERCHE ---
 with st.sidebar:
     try: st.image(URL_LOGO, width=60)
     except: pass
-        
+    
+    st.header("🔍 Recherche Magique")
+    
+    def valider_recherche():
+        requete = st.session_state.recherche_input
+        if requete:
+            ville, cat = moteur_recherche(requete, CONFIG_VILLES)
+            if ville:
+                st.session_state.ville_selectionnee = ville
+                if cat:
+                    st.session_state.cat_selectionnee = cat
+                    st.success(f"Go : {cat} à {ville}")
+                else:
+                    st.warning(f"Ville changée pour {ville}. Précisez la catégorie.")
+            else:
+                st.error("Je n'ai pas compris (ex: 'Wifi Paris').")
+
+    st.text_input("Ex: 'Parking Rennes', 'Wifi Paris'", key="recherche_input", on_change=valider_recherche)
+
+    st.divider()
     st.header("📍 Destination")
-    ville_actuelle = st.selectbox("Choisir une ville :", list(CONFIG_VILLES.keys()))
+    
+    # 1. Select Ville (Lié au State)
+    ville_actuelle = st.selectbox(
+        "Choisir une ville :", 
+        options=list(CONFIG_VILLES.keys()),
+        key="ville_selectionnee"
+    )
+    
     config_ville = CONFIG_VILLES[ville_actuelle]
     all_categories = config_ville["categories"]
+    
+    st.divider()
+    
+    # 2. Select Catégorie (Logique dynamique)
+    if st.session_state.cat_selectionnee not in all_categories:
+        st.session_state.cat_selectionnee = list(all_categories.keys())[0]
+
+    liste_cats = list(all_categories.keys())
+    try:
+        index_cat = liste_cats.index(st.session_state.cat_selectionnee)
+    except ValueError:
+        index_cat = 0
+        
+    choix_utilisateur_brut = st.selectbox(
+        "Choisir une donnée :", 
+        options=liste_cats,
+        index=index_cat
+    )
+    # Update manuel du state
+    st.session_state.cat_selectionnee = choix_utilisateur_brut
     
     st.divider()
     st.header("⚙️ Paramètres")
     activer_voix = st.checkbox("Activer l'assistant vocal", value=True)
     
-    st.divider()
-    st.header("🔍 Données")
-    
-    cats_cartes = {k: v for k, v in all_categories.items() if not v.get("no_map")}
-    cats_stats = {k: v for k, v in all_categories.items() if v.get("no_map")}
-    
-    type_visu = st.radio("Type de visualisation :", ["🗺️ Cartes Interactives", "📊 Statistiques & Analyses"])
-    
-    choix_utilisateur = None
-    if type_visu == "🗺️ Cartes Interactives":
-        choix_utilisateur = st.selectbox("Choisir une carte :", list(cats_cartes.keys()))
+    # Définition du type de vue
+    config_data = all_categories[choix_utilisateur_brut]
+    if config_data.get("no_map"):
+        type_visu = "STATS"
     else:
-        if cats_stats:
-            choix_utilisateur = st.selectbox("Choisir une analyse :", list(cats_stats.keys()))
-        else:
-            st.info("Aucune donnée purement statistique pour cette ville.")
-            choix_utilisateur = list(cats_cartes.keys())[0]
+        type_visu = "CARTE"
 
-    st.divider()
+    # Filtres
     mode_filtre = False
     filtre_texte = ""
-    if type_visu == "🗺️ Cartes Interactives":
+    if type_visu == "CARTE":
         st.header("🔎 Filtres")
         mode_filtre = st.toggle("Filtrer par zone", value=False)
         if mode_filtre:
-            st.caption("Numéro d'arrondissement ou code postal.")
-            filtre_texte = st.text_input("Recherche :")
+            filtre_texte = st.text_input("Recherche zone :")
 
 # --- CHARGEMENT ---
+choix_utilisateur = choix_utilisateur_brut
 cle_unique = f"{ville_actuelle}_{choix_utilisateur}"
+
 if cle_unique != st.session_state.dernier_choix:
     if activer_voix:
         jouer_son_automatique(f"Chargement : {ville_actuelle}, {choix_utilisateur}")
     st.session_state.dernier_choix = cle_unique
-
-config_data = all_categories[choix_utilisateur]
 
 with st.spinner(f"Chargement des données de {ville_actuelle}..."):
     limit_req = 1500 if "frequentation" in config_data["api_id"] else 500
@@ -379,13 +441,13 @@ if len(tous_resultats) > 0:
             st.success(f"✅ Filtre actif : {len(resultats_finaux)} lieux.")
     else:
         resultats_finaux = tous_resultats
-        if type_visu == "🗺️ Cartes Interactives":
+        if type_visu == "CARTE":
             st.success(f"🌍 {ville_actuelle} : {len(resultats_finaux)} lieux trouvés.")
 else:
     st.info("Pas de données disponibles pour cette catégorie.")
 
 # --- AFFICHAGE ---
-if config_data.get("no_map"):
+if type_visu == "STATS":
     tab_stats, tab_donnees = st.tabs(["📊 Statistiques", "📋 Données"])
     tab_carte = None 
 else:
@@ -431,7 +493,7 @@ if tab_carte:
             HeatMap(coords_heatmap, radius=15).add_to(m)
         
         if coords_heatmap or style_vue == "📍 Points":
-            # MODIFICATION ICI POUR EVITER LE RAFRAICHISSEMENT
+            # --- CORRECTION DU RAFRAICHISSEMENT ---
             st_folium(m, width=1000, height=600, returned_objects=[])
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée (Vérifiez les données brutes).")
@@ -443,7 +505,6 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
-            # 1. MAPPING COLONNES
             map_cols = {
                 'nom_court_ligne': 'ligne',
                 'niveau_frequentation_libelle': 'frequentation',
@@ -453,28 +514,20 @@ with tab_stats:
             }
             df = df.rename(columns=map_cols)
 
-            # 2. FILTRE DE PÉRIODE (JOUR)
             if 'jour' not in df.columns:
                 cols_jour = [c for c in df.columns if "jour" in c.lower()]
-                if cols_jour:
-                    df['jour'] = df[cols_jour[0]]
+                if cols_jour: df['jour'] = df[cols_jour[0]]
 
             if 'jour' in df.columns:
                 périodes_dispo = df['jour'].unique().tolist()
                 choix_jour = st.selectbox("📅 Choisir la période à analyser :", périodes_dispo)
                 df = df[df['jour'] == choix_jour]
                 st.success(f"Analyse filtrée pour : {choix_jour} ({len(df)} relevés)")
-            else:
-                st.warning("⚠️ Information 'jour' non trouvée.")
-
-            # 3. Nettoyage
+            
             if "frequentation" in df.columns:
-                df["frequentation"] = df["frequentation"].fillna("Non ouverte")
-                df["frequentation"] = df["frequentation"].replace("", "Non ouverte")
+                df["frequentation"] = df["frequentation"].fillna("Non ouverte").replace("", "Non ouverte")
 
-            # 4. Traitement & Graphiques
             if "ligne" in df.columns and "frequentation" in df.columns and "tranche_horaire" in df.columns:
-                
                 parsed_data = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(x)))
                 parsed_data.columns = ['heure_debut', 'heure_fin', 'duree_heures']
                 df = pd.concat([df, parsed_data], axis=1)
@@ -483,35 +536,20 @@ with tab_stats:
                 
                 if not df_clean.empty:
                     st.write("### 🟢 Répartition de la charge (%)")
-                    st.caption("Pour chaque ligne, quelle proportion du temps est calme (vert) ou chargée (rouge) ?")
-                    
-                    # NOUVEAU GRAPHIQUE 1 : Horizontal Stacked 100%
                     chart = alt.Chart(df_clean).mark_bar().encode(
                         y=alt.Y('ligne', sort='descending', title="Ligne"),
                         x=alt.X('sum(duree_heures)', stack='normalize', axis=alt.Axis(format='%'), title="Répartition du temps"),
                         color=alt.Color('frequentation:N', 
-                                        scale=alt.Scale(
-                                            domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],
-                                            range=['#2ecc71', '#f1c40f', '#e74c3c', '#95a5a6'] 
-                                        ),
+                                        scale=alt.Scale(domain=['Faible', 'Moyenne', 'Forte', 'Non ouverte'],
+                                                        range=['#2ecc71', '#f1c40f', '#e74c3c', '#95a5a6']),
                                         legend=alt.Legend(title="Charge")),
                         tooltip=['ligne', 'frequentation', 'sum(duree_heures)']
                     ).interactive()
                     st.altair_chart(chart, use_container_width=True)
-                    
-                    st.write("### 📅 Planning Visuel (Heatmap)")
-                    
-                    heatmap = alt.Chart(df_clean).mark_bar().encode(
-                        x=alt.X('heure_debut', title="Heure (0h-24h)", scale=alt.Scale(domain=[0, 24])),
-                        x2='heure_fin', 
-                        y=alt.Y('ligne', title="Ligne"),
-                        color=alt.Color('frequentation:N', title="Charge"),
-                        tooltip=['ligne', 'tranche_horaire', 'frequentation']
-                    ).interactive()
-                    st.altair_chart(heatmap, use_container_width=True)
                 else:
-                    st.warning("Aucune donnée horaire valide pour cette période.")
+                    st.warning("Aucune donnée horaire valide.")
         else:
+            # Stats génériques (Bar Chart par CP)
             col1, col2 = st.columns(2)
             with col1: st.metric("Total éléments", len(resultats_finaux))
             

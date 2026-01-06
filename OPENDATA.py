@@ -405,7 +405,7 @@ if cle_unique != st.session_state.dernier_choix:
     st.session_state.dernier_choix = cle_unique
 
 with st.spinner(f"Chargement des données de {ville_actuelle}..."):
-    limit_req = 1500 if "frequentation" in config_data["api_id"] else 500
+    limit_req = 200
     raw_data = charger_donnees(config_ville["api_url"], config_data["api_id"], cible=limit_req)
 
 tous_resultats = raw_data if isinstance(raw_data, list) else []

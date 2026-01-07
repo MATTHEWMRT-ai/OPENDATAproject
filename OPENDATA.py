@@ -9,15 +9,16 @@ import time
 import pandas as pd
 import re
 import altair as alt
+import narwhals as nw # Utilisé en interne par Altair, on l'importe au cas où
 
 # ==========================================
-# 0. CONFIGURATION PAGE (Sidebar ouverte par défaut)
+# 0. CONFIGURATION PAGE
 # ==========================================
 st.set_page_config(
     page_title="City Pulse", 
     page_icon="🌍", 
     layout="wide", 
-    initial_sidebar_state="expanded" # <--- Force l'ouverture de la barre latérale
+    initial_sidebar_state="expanded"
 )
 
 # ==========================================
@@ -203,45 +204,32 @@ def parser_horaires_robust(texte_horaire):
 
 def recuperer_coordonnees(site):
     """ Détective de coordonnées (Gère tous les formats) """
-    
-    # 1. Format Paris "lat_lon"
     if "lat_lon" in site:
         ll = site["lat_lon"]
         if isinstance(ll, dict): return ll.get("lat"), ll.get("lon")
-    
-    # 2. Format Rennes Parking "geo"
     if "geo" in site:
         g = site["geo"]
         if isinstance(g, dict): return g.get("lat"), g.get("lon")
         if isinstance(g, list) and len(g) == 2: return g[0], g[1]
-
-    # 3. Format Rennes Bus/Velo "coordonnees"
     if "coordonnees" in site:
         c = site["coordonnees"]
         if isinstance(c, dict): return c.get("lat"), c.get("lon")
         if isinstance(c, list) and len(c) == 2: return c[0], c[1]
-
-    # 4. Standard GeoJSON "geometry"
     geom = site.get("geometry")
     if geom and isinstance(geom, dict) and geom.get("type") == "Point":
         coords = geom.get("coordinates")
         if coords and len(coords) == 2: return coords[1], coords[0] 
-
-    # 5. Autres cas
     if "geo_point_2d" in site:
         geo = site["geo_point_2d"]
         if isinstance(geo, dict): return geo.get("lat"), geo.get("lon")
         if isinstance(geo, list) and len(geo) == 2: return geo[0], geo[1]
-
     geoloc = site.get("geolocalisation")
     if geoloc:
         if isinstance(geoloc, dict): return geoloc.get("lat"), geoloc.get("lon")
         if isinstance(geoloc, list) and len(geoloc) == 2: return geoloc[0], geoloc[1]
-        
     return None, None
 
 def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
-    """ Tente de deviner le code postal """
     cp_trouve = None
     regex = rf'{prefixe_cp}\d{{3}}'
     for col in COLONNES_CP_A_SCANNER:
@@ -262,7 +250,6 @@ def extraire_cp_intelligent(site_data, col_adresse_config, prefixe_cp="75"):
     return "Inconnu"
 
 def jouer_son_automatique(texte):
-    """ Synthèse vocale """
     try:
         tts = gTTS(text=texte, lang='fr')
         nom_fichier = "temp_voice.mp3"
@@ -272,18 +259,15 @@ def jouer_son_automatique(texte):
             b64 = base64.b64encode(data).decode()
         md = f"""<audio autoplay><source src="data:audio/mp3;base64,{b64}" type="audio/mp3"></audio>"""
         st.sidebar.markdown(md, unsafe_allow_html=True)
-        time.sleep(1) # Petit délai pour l'audio
+        time.sleep(1)
     except:
         pass
 
 @st.cache_data 
 def charger_donnees(base_url, api_id, cible=500):
-    """ Charge les données JSON depuis l'API """
     headers = {'User-Agent': 'Mozilla/5.0'}
     url = f"{base_url}/{api_id}/records"
     tous_les_resultats = []
-    
-    # Note : Si vous avez une clé API, ajoutez 'Authorization': 'Apikey VOTRE_CLE' dans headers
     
     for offset in range(0, cible, 100):
         params = {"limit": 100, "offset": offset}
@@ -313,7 +297,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- INIT STATE ---
 if 'ville_selectionnee' not in st.session_state:
     st.session_state.ville_selectionnee = list(CONFIG_VILLES.keys())[0]
 if 'cat_selectionnee' not in st.session_state:
@@ -337,7 +320,6 @@ with st.sidebar:
     try: st.image(URL_LOGO, width=60)
     except: pass
     
-    # 1. Barre de Recherche Magique
     st.header("🔍 Recherche Magique")
     
     def valider_recherche():
@@ -359,19 +341,12 @@ with st.sidebar:
     st.divider()
     st.header("📍 Destination")
     
-    # 2. Sélecteurs liés au State
-    ville_actuelle = st.selectbox(
-        "Choisir une ville :", 
-        options=list(CONFIG_VILLES.keys()),
-        key="ville_selectionnee"
-    )
-    
+    ville_actuelle = st.selectbox("Choisir une ville :", options=list(CONFIG_VILLES.keys()), key="ville_selectionnee")
     config_ville = CONFIG_VILLES[ville_actuelle]
     all_categories = config_ville["categories"]
     
     st.divider()
     
-    # Sécurité si la catégorie n'existe pas dans la nouvelle ville
     if st.session_state.cat_selectionnee not in all_categories:
         st.session_state.cat_selectionnee = list(all_categories.keys())[0]
 
@@ -381,11 +356,7 @@ with st.sidebar:
     except ValueError:
         index_cat = 0
         
-    choix_utilisateur_brut = st.selectbox(
-        "Choisir une donnée :", 
-        options=liste_cats,
-        index=index_cat
-    )
+    choix_utilisateur_brut = st.selectbox("Choisir une donnée :", options=liste_cats, index=index_cat)
     st.session_state.cat_selectionnee = choix_utilisateur_brut
     
     st.divider()
@@ -416,8 +387,6 @@ if cle_unique != st.session_state.dernier_choix:
     st.session_state.dernier_choix = cle_unique
 
 with st.spinner(f"Chargement des données de {ville_actuelle}..."):
-    # Limite réduite à 500 pour éviter de bloquer l'API Rennes (Quota exceeded)
-    # Pour avoir tout, il faudra remettre 1500 plus tard
     limit_req = 500 if "frequentation" in config_data["api_id"] else 500
     raw_data = charger_donnees(config_ville["api_url"], config_data["api_id"], cible=limit_req)
 
@@ -496,7 +465,6 @@ if tab_carte:
             HeatMap(coords_heatmap, radius=15).add_to(m)
         
         if coords_heatmap or style_vue == "📍 Points":
-            # CORRECTION : Empêche le rechargement de la page lors du zoom/clic
             st_folium(m, width=1000, height=600, returned_objects=[])
         else:
             st.warning("⚠️ Aucune coordonnée GPS trouvée (Vérifiez les données brutes).")
@@ -509,66 +477,55 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
-            # 1. Normalisation des noms de colonnes (tout en minuscule)
+            # 1. Normalisation
             df.columns = [c.lower() for c in df.columns]
             
-            # 2. SUPPRESSION DES DOUBLONS (Le Correctif Anti-Crash)
-            # Si l'API renvoie "Ligne" et "ligne", le lower() crée un doublon. On le vire ici.
+            # 2. Suppression doublons colonnes
             df = df.loc[:, ~df.columns.duplicated()]
             
-            # 3. Renommage intelligent sans conflit
-            # On cherche la meilleure colonne pour la fréquentation
-            col_freq = "niveau_frequentation" if "niveau_frequentation" in df.columns else "frequentation"
-            
-            # Si on va renommer 'niveau_frequentation' en 'frequentation',
-            # il faut d'abord supprimer la colonne 'frequentation' si elle existe déjà pour éviter le DuplicateError
-            if col_freq != "frequentation" and "frequentation" in df.columns:
-                df = df.drop(columns=["frequentation"])
-
+            # 3. MAPPING FORCE : On veut 'frequentation' uniquement
+            # On ignore 'niveau_frequentation' si present, on veut la colonne texte
             map_dict = {
                 "ligne": "ligne",
                 "tranche_horaire": "tranche_horaire",
                 "jour_semaine": "jour",
-                col_freq: "frequentation"
+                "frequentation": "frequentation" # On cible explicitement celle-ci
             }
             
-            # On vérifie que les colonnes clés existent
-            cols_ok = [c for c in map_dict.keys() if c in df.columns]
-            
-            if len(cols_ok) >= 3: 
-                df = df.rename(columns={k:v for k,v in map_dict.items() if k in df.columns})
+            # Renommage
+            cols_to_rename = {k:v for k,v in map_dict.items() if k in df.columns}
+            df = df.rename(columns=cols_to_rename)
 
-                # 4. FILTRE JOUR
-                if 'jour' in df.columns:
-                    df['jour'] = df['jour'].fillna("Indéfini")
-                    périodes = sorted(df['jour'].unique().astype(str).tolist())
-                    
-                    if périodes:
-                        # Cherche "Lundi" par défaut
-                        idx = next((i for i, p in enumerate(périodes) if "lundi" in p.lower()), 0)
-                        choix_jour = st.selectbox("📅 Choisir le jour à afficher :", périodes, index=idx)
-                        df = df[df['jour'] == choix_jour]
-                    else:
-                        st.warning("⚠️ Colonne 'jour_semaine' vide.")
+            # 4. FILTRE JOUR
+            if 'jour' in df.columns:
+                df['jour'] = df['jour'].fillna("Indéfini")
+                périodes = sorted(df['jour'].unique().astype(str).tolist())
+                if périodes:
+                    idx = next((i for i, p in enumerate(périodes) if "lundi" in p.lower()), 0)
+                    choix_jour = st.selectbox("📅 Choisir le jour à afficher :", périodes, index=idx)
+                    df = df[df['jour'] == choix_jour]
 
-                # 5. Nettoyage & Parsing
+            # 5. NETTOYAGE & FORMATAGE
+            if "frequentation" in df.columns:
+                # 1. Remplir les vides
                 df["frequentation"] = df["frequentation"].fillna("Non ouverte").replace("", "Non ouverte")
+                # 2. IMPORTANT : Mettre en Majuscule (faible -> Faible) pour matcher les couleurs
+                df["frequentation"] = df["frequentation"].astype(str).str.capitalize()
+                # 3. Cas spécial pour "Non ouverte" qui doit rester tel quel (capitalize le fait déjà : Non ouverte)
                 
                 # Parsing horaires
                 parsed = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(str(x))))
                 parsed.columns = ['heure_debut', 'heure_fin', 'duree_heures']
                 
-                # Fusion propre (concat peut créer des doublons d'index, on reset avant)
                 df = df.reset_index(drop=True)
                 df = pd.concat([df, parsed], axis=1)
                 
-                # Garder uniquement les durées valides
                 df_clean = df[df['duree_heures'] > 0].copy()
 
                 if not df_clean.empty:
                     st.write(f"### 🟢 Répartition de la charge ({choix_jour})")
                     
-                    # Configuration Couleurs
+                    # Configuration Couleurs (Bien alignée avec les valeurs capitalize)
                     dom = ['Faible', 'Moyenne', 'Forte', 'Non ouverte']
                     rng = ['#2ecc71', '#f1c40f', '#8e44ad', '#FF0000']
 
@@ -592,10 +549,10 @@ with tab_stats:
                     ).properties(height=max(400, len(df_clean['ligne'].unique())*20)).interactive()
                     st.altair_chart(heatmap, use_container_width=True)
                 else:
-                    st.warning("⚠️ Pas de données horaires valides après traitement.")
+                    st.warning("⚠️ Pas de données horaires valides.")
             else:
-                st.error("⚠️ Colonnes API Bus manquantes ou renommées.")
-                st.write("Colonnes reçues :", df.columns.tolist())
+                st.error("⚠️ Colonne 'frequentation' introuvable.")
+                st.write("Colonnes dispo :", df.columns.tolist())
 
         # --- CAS GÉNÉRAL (AUTRES STATS) ---
         else:

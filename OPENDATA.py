@@ -181,45 +181,22 @@ def moteur_recherche(requete, config):
                 break
     return ville_trouvee, cat_trouvee
 
-def parser_horaires_robust(texte_horaire):
-    """ 
-    NOUVELLE VERSION INTELLIGENTE :
-    - Si format "07:00" -> Extrait 7h et considère que ça dure 30 min (jusqu'à 7h30)
-    - Si format "07:00 - 09:00" -> Garde l'ancienne logique
+def convert_time_to_float(time_str):
+    """
+    Convertit 'HH:MM' en float (heures).
+    Gère la nuit : 00:30 devient 24.5 pour faciliter le tri chronologique.
     """
     try:
-        texte = str(texte_horaire).strip()
-        
-        # CAS 1 : Format "HH:MM" simple (Ex: "07:00")
-        # On suppose que c'est un créneau de 30 minutes
-        if re.match(r'^\d{1,2}:\d{2}$', texte):
-            parts = [int(s) for s in re.findall(r'\d+', texte)]
-            if len(parts) == 2:
-                h, m = parts[0], parts[1]
-                debut = h + m / 60.0
-                fin = debut + 0.5 # On ajoute 30 minutes (0.5 heure)
-                return debut, fin, 0.5
-
-        # CAS 2 : Anciens formats complexes ou plages (Ex: "07:00 - 09:00")
-        nums = [int(s) for s in re.findall(r'\d+', texte)]
-        debut, fin = 0, 0
-        
-        if len(nums) == 2: # Ex: "7h - 9h"
-            debut, fin = nums[0], nums[1]
-        elif len(nums) == 4: # Ex: "07:00 - 09:00"
-            debut, fin = nums[0], nums[2] # On prend les heures
-        elif len(nums) >= 6:
-            debut, fin = nums[0], nums[3]
-
-        duree = fin - debut
-        if fin < debut: 
-            fin += 24
-            duree = fin - debut
-        
-        return debut, fin, duree
+        if not isinstance(time_str, str): return None
+        parts = time_str.split(':')
+        h = int(parts[0])
+        m = int(parts[1])
+        # Logique de nuit : on considère que la journée de transport va jusqu'à 4h du matin
+        if h < 4: 
+            h += 24
+        return h + (m / 60.0)
     except:
-        pass
-    return 0, 0, 0
+        return None
 
 def recuperer_coordonnees(site):
     """ Détective de coordonnées (Gère tous les formats) """
@@ -498,25 +475,20 @@ with tab_stats:
             
             # 1. Normalisation des colonnes
             df.columns = [c.lower() for c in df.columns]
-            df = df.loc[:, ~df.columns.duplicated()] # Supprime les doublons
+            df = df.loc[:, ~df.columns.duplicated()]
             
             # 2. SÉLECTION STRICTE DE LA COLONNE
-            # On cherche "frequentation" (et on évite niveau_frequentation si possible, sauf si c'est la seule)
-            if "frequentation" in df.columns:
-                col_target = "frequentation"
-            elif "niveau_frequentation" in df.columns:
-                col_target = "niveau_frequentation"
-            else:
-                col_target = None
+            if "frequentation" in df.columns: col_target = "frequentation"
+            elif "niveau_frequentation" in df.columns: col_target = "niveau_frequentation"
+            else: col_target = None
 
             map_dict = {
                 "ligne": "ligne",
                 "tranche_horaire": "tranche_horaire",
                 "jour_semaine": "jour",
-                col_target: "frequentation" # On renomme la cible en 'frequentation'
+                col_target: "frequentation"
             }
 
-            # On vérifie la présence des colonnes
             if col_target and "ligne" in df.columns and "tranche_horaire" in df.columns:
                 df = df.rename(columns={k:v for k,v in map_dict.items() if k in df.columns})
 
@@ -525,63 +497,77 @@ with tab_stats:
                     df['jour'] = df['jour'].fillna("Indéfini")
                     périodes = sorted(df['jour'].unique().astype(str).tolist())
                     if périodes:
-                        # On essaie de trouver "Lundi" par défaut
                         idx = next((i for i, p in enumerate(périodes) if "lundi" in p.lower()), 0)
                         choix_jour = st.selectbox("📅 Choisir le jour à afficher :", périodes, index=idx)
                         df = df[df['jour'] == choix_jour]
 
-                # 4. NETTOYAGE DES VALEURS 
-                # On remplit les vides
+                # 4. NETTOYAGE ET CONVERSION
                 df["frequentation"] = df["frequentation"].fillna("Non ouverte").replace("", "Non ouverte")
                 
-                # On normalise le texte pour qu'il matche les couleurs (Haute -> Forte, Faible -> Faible, etc.)
                 def normaliser_freq(val):
                     val = str(val).lower().strip()
                     if "faible" in val: return "Faible"
                     if "moyen" in val: return "Moyenne"
-                    if "haute" in val or "forte" in val: return "Forte" # Corrige le problème "Haute"
-                    return "Non ouverte" # Tout le reste devient Rouge
+                    if "haute" in val or "forte" in val: return "Forte"
+                    return "Non ouverte"
 
                 df["frequentation"] = df["frequentation"].apply(normaliser_freq)
 
-                # 5. Parsing horaires (Version corrigée appliquée ici)
-                parsed = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(str(x))))
-                parsed.columns = ['heure_debut', 'heure_fin', 'duree_heures']
+                # --- NOUVELLE LOGIQUE DE TEMPS (GANTT) ---
+                # 1. Convertir l'heure de début en float (avec gestion de nuit > 24h)
+                df['heure_debut'] = df['tranche_horaire'].apply(convert_time_to_float)
                 
-                df = df.reset_index(drop=True)
-                df = pd.concat([df, parsed], axis=1)
+                # 2. Trier pour que les créneaux soient dans l'ordre
+                df = df.sort_values(by=['ligne', 'heure_debut'])
                 
-                # On garde ce qui a une durée > 0
-                df_clean = df[df['duree_heures'] > 0].copy()
+                # 3. Calculer l'heure de fin = heure de début du prochain créneau de la même ligne
+                df['heure_fin'] = df.groupby('ligne')['heure_debut'].shift(-1)
+                
+                # 4. Pour le dernier créneau, on ajoute 30min par défaut
+                df['heure_fin'] = df['heure_fin'].fillna(df['heure_debut'] + 0.5)
+                
+                # 5. Calculer la durée réelle
+                df['duree'] = df['heure_fin'] - df['heure_debut']
+                
+                # On enlève les durées négatives ou nulles (erreurs de données)
+                df_clean = df[df['duree'] > 0].copy()
 
                 if not df_clean.empty:
                     st.write(f"### 🟢 Répartition de la charge ({choix_jour})")
                     
-                    # --- COULEURS ---
-                    # Maintenant que les données sont normalisées (Faible, Moyenne, Forte), ça va marcher
-                    dom = ['Faible', 'Moyenne', 'Forte', 'Non ouverte']
-                    rng = ['#2ecc71', '#f1c40f', '#8e44ad', '#FF0000'] # Vert, Jaune, Violet, Rouge
+                    # Option pour masquer "Non ouverte" sur le camembert/barre
+                    masquer_non_ouvert = st.checkbox("Masquer les périodes 'Non ouverte' (pour mieux voir la charge)", value=True)
+                    df_viz = df_clean.copy()
+                    if masquer_non_ouvert:
+                        df_viz = df_viz[df_viz['frequentation'] != "Non ouverte"]
 
-                    # Graphique 1 : Barres empilées
-                    chart = alt.Chart(df_clean).mark_bar().encode(
+                    dom = ['Faible', 'Moyenne', 'Forte', 'Non ouverte']
+                    rng = ['#2ecc71', '#f1c40f', '#8e44ad', '#FF0000']
+
+                    # Graphique 1 : Barres empilées (avec durée réelle)
+                    chart = alt.Chart(df_viz).mark_bar().encode(
                         y=alt.Y('ligne', title="Ligne"),
-                        x=alt.X('sum(duree_heures)', stack='normalize', axis=alt.Axis(format='%'), title="% Temps"),
+                        x=alt.X('sum(duree)', stack='normalize', axis=alt.Axis(format='%'), title="% Temps Actif"),
                         color=alt.Color('frequentation:N', 
                                         scale=alt.Scale(domain=dom, range=rng),
                                         legend=alt.Legend(title="Charge")),
-                        tooltip=['ligne', 'frequentation']
+                        tooltip=['ligne', 'frequentation', alt.Tooltip('sum(duree)', format='.1f', title='Heures')]
                     ).interactive()
                     st.altair_chart(chart, use_container_width=True)
                     
-                    # Graphique 2 : Planning
+                    # Graphique 2 : Planning (GANTT PLEIN)
                     st.write("### 📅 Planning Horaire")
+                    
+                    # Pour l'affichage, on remet les heures > 24h au format 0-24h si on veut, 
+                    # mais Altair gère bien les axes continus. On va juste borner l'axe X.
                     heatmap = alt.Chart(df_clean).mark_rect().encode(
-                        x=alt.X('heure_debut:Q', title="Heure (5h-24h)", scale=alt.Scale(domain=[5, 24])),
+                        x=alt.X('heure_debut:Q', title="Heure (5h - 01h+)", scale=alt.Scale(domain=[4, 28])),
                         x2='heure_fin:Q',
                         y=alt.Y('ligne:N', sort='ascending'),
                         color=alt.Color('frequentation:N', scale=alt.Scale(domain=dom, range=rng)),
                         tooltip=['ligne', 'tranche_horaire', 'frequentation']
                     ).properties(height=max(400, len(df_clean['ligne'].unique())*20)).interactive()
+                    
                     st.altair_chart(heatmap, use_container_width=True)
                 else:
                     st.warning("⚠️ Pas de données horaires valides.")

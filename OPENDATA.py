@@ -502,87 +502,102 @@ with tab_stats:
         if config_data["api_id"] == "mkt-frequentation-niveau-freq-max-ligne":
             df = pd.DataFrame(resultats_finaux)
             
-            # 1. Normalisation noms de colonnes
+            # 1. Normalisation des noms de colonnes (tout en minuscule)
             df.columns = [c.lower() for c in df.columns]
             
-            # 2. Mapping Stricte des colonnes (basé sur tes données)
-            # Tes colonnes : 'ligne', 'tranche_horaire', 'frequentation', 'jour_semaine'
-            col_ligne = next((c for c in df.columns if "ligne" in c), None)
-            col_freq = next((c for c in df.columns if "frequentation" in c and "niveau" not in c), None) 
-            if not col_freq: col_freq = next((c for c in df.columns if "frequentation" in c), None)
+            # 2. Renommage explicite basé sur vos colonnes
+            # Vos colonnes : jour_semaine, materiel, ligne, tranche_horaire, frequentation, niveau_frequentation
+            
+            # On cherche la colonne qui contient le niveau de charge (priorité à 'niveau_frequentation')
+            col_freq = "niveau_frequentation" if "niveau_frequentation" in df.columns else "frequentation"
+            
+            # Dictionnaire de mappage
+            map_dict = {
+                "ligne": "ligne",
+                "tranche_horaire": "tranche_horaire",
+                "jour_semaine": "jour",
+                col_freq: "frequentation"
+            }
+            
+            # On vérifie que les colonnes existent bien avant de renommer
+            cols_presentes = [c for c in map_dict.keys() if c in df.columns]
+            
+            if len(cols_presentes) >= 3: # Si on a au moins ligne, horaire et freq
+                # On renomme uniquement celles qui existent
+                df = df.rename(columns={k:v for k,v in map_dict.items() if k in df.columns})
 
-            col_heure = next((c for c in df.columns if "tranche" in c or "horaire" in c), None)
-            col_jour = next((c for c in df.columns if "jour" in c), None) # Detecte 'jour_semaine'
-
-            if col_ligne and col_freq and col_heure:
-                rename_dict = {col_ligne: 'ligne', col_freq: 'frequentation', col_heure: 'tranche_horaire'}
-                if col_jour: rename_dict[col_jour] = 'jour'
-                df = df.rename(columns=rename_dict)
-
-                # 3. FILTRE JOUR (Pour prendre en compte TOUS les jours)
+                # 3. FILTRE JOUR
                 if 'jour' in df.columns:
-                    df = df.dropna(subset=['jour'])
+                    # On ne supprime rien, on garde tout
+                    df['jour'] = df['jour'].fillna("Indéfini")
                     périodes = sorted(df['jour'].unique().astype(str).tolist())
                     
                     if périodes:
-                        # On affiche un sélecteur pour que l'utilisateur puisse voir tous les jours dispo
-                        st.info("💡 Données disponibles pour : " + ", ".join(périodes))
+                        st.info("💡 Jours disponibles : " + ", ".join(périodes))
+                        # Par défaut on cherche "Lundi" ou "Semaine", sinon le premier
                         idx = next((i for i, p in enumerate(périodes) if "lundi" in p.lower()), 0)
                         choix_jour = st.selectbox("📅 Choisir le jour à afficher :", périodes, index=idx)
+                        
+                        # Filtrage
                         df = df[df['jour'] == choix_jour]
                     else:
-                        st.warning("Colonnes 'jour' vide.")
+                        st.warning("⚠️ La colonne 'jour_semaine' semble vide.")
 
-                # 4. Nettoyage & COULEURS
-                # On remplace les vides par "Non ouverte"
+                # 4. Nettoyage & Parsing des Horaires
+                # On remplit les vides par 'Non ouverte' pour qu'elles apparaissent en Rouge
                 df["frequentation"] = df["frequentation"].fillna("Non ouverte").replace("", "Non ouverte")
                 
-                # Parsing Heures
+                # Parsing robuste des horaires (ex: "07:00-09:00")
                 parsed = df['tranche_horaire'].apply(lambda x: pd.Series(parser_horaires_robust(str(x))))
                 parsed.columns = ['heure_debut', 'heure_fin', 'duree_heures']
                 df = pd.concat([df, parsed], axis=1)
                 
+                # On garde uniquement ce qui a une durée valide (>0)
                 df_clean = df[df['duree_heures'] > 0].copy()
 
                 if not df_clean.empty:
                     st.write(f"### 🟢 Répartition de la charge ({choix_jour})")
                     
-                    # --- CONFIGURATION COULEURS DEMANDÉE ---
-                    # Rouge pour non ouverte
+                    # --- COULEURS ---
+                    # On définit l'ordre et les couleurs (Rouge pour Non ouverte)
                     dom = ['Faible', 'Moyenne', 'Forte', 'Non ouverte']
                     rng = [
                         '#2ecc71', # Vert (Faible)
-                        '#f1c40f', # Jaune/Orange (Moyenne)
-                        '#8e44ad', # Violet (Forte - pour contraste)
-                        '#FF0000'  # ROUGE (Non ouverte - Comme demandé)
+                        '#f1c40f', # Jaune (Moyenne)
+                        '#8e44ad', # Violet (Forte)
+                        '#FF0000'  # ROUGE (Non ouverte)
                     ]
 
-                    # Graphique 1 : Barres empilées
+                    # Graphique 1 : Barres empilées (% du temps)
                     chart = alt.Chart(df_clean).mark_bar().encode(
                         y=alt.Y('ligne', title="Ligne"),
                         x=alt.X('sum(duree_heures)', stack='normalize', axis=alt.Axis(format='%'), title="% Temps"),
                         color=alt.Color('frequentation:N', 
                                         scale=alt.Scale(domain=dom, range=rng),
                                         legend=alt.Legend(title="Charge")),
-                        tooltip=['ligne', 'frequentation']
+                        tooltip=['ligne', 'tranche_horaire', 'frequentation']
                     ).interactive()
                     st.altair_chart(chart, use_container_width=True)
                     
-                    # Graphique 2 : Planning
+                    # Graphique 2 : Planning Horaire (Heatmap)
                     st.write("### 📅 Planning Horaire")
                     heatmap = alt.Chart(df_clean).mark_rect().encode(
-                        x=alt.X('heure_debut:Q', title="Heure", scale=alt.Scale(domain=[5, 24])),
+                        x=alt.X('heure_debut:Q', title="Heure (5h-24h)", scale=alt.Scale(domain=[5, 24])),
                         x2='heure_fin:Q',
-                        y=alt.Y('ligne:N'),
+                        y=alt.Y('ligne:N', sort='ascending'),
                         color=alt.Color('frequentation:N', scale=alt.Scale(domain=dom, range=rng)),
                         tooltip=['ligne', 'tranche_horaire', 'frequentation']
-                    ).properties(height=max(400, len(df_clean['ligne'].unique())*20)).interactive()
+                    ).properties(
+                        height=max(400, len(df_clean['ligne'].unique())*20) # Hauteur dynamique
+                    ).interactive()
                     st.altair_chart(heatmap, use_container_width=True)
                 else:
-                    st.warning("⚠️ Données présentes mais calcul horaire impossible.")
+                    st.warning("⚠️ Le tableau est vide après traitement des horaires.")
+                    st.write("Exemple de tranche horaire brute reçue :", df['tranche_horaire'].iloc[0] if not df.empty else "Aucune")
             else:
-                st.error("⚠️ Colonnes API Bus introuvables.")
-                st.write("Colonnes reçues :", df.columns.tolist())
+                st.error("⚠️ Colonnes manquantes.")
+                st.write("Colonnes trouvées :", df.columns.tolist())
+                st.write("Colonnes attendues : ligne, tranche_horaire, niveau_frequentation")
 
         # --- CAS GÉNÉRAL (AUTRES STATS) ---
         else:

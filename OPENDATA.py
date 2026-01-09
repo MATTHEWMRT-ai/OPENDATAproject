@@ -21,10 +21,9 @@ st.set_page_config(
 )
 
 # ==========================================
-# 1. CONFIGURATION DONNÉES
+# 1. CONFIGURATION DONNÉES COMPLÈTE
 # ==========================================
 
-# NOTE : J'ai ajouté la catégorie "📉 Qualité de l'Air" à chaque ville
 CONFIG_VILLES = {
     "Paris 🗼": {
         "coords_center": [48.8566, 2.3522],
@@ -55,6 +54,49 @@ CONFIG_VILLES = {
                 "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")],
                 "mots_cles": ["toilettes", "wc", "pipi"]
             },
+            "⛲️ Fontaines à boire": {
+                "api_id": "fontaines-a-boire",
+                "col_titre": "voie", "col_adresse": "commune",
+                "icone": "glass", "couleur": "cadetblue", 
+                "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
+                "mots_cles": ["eau", "boire", "fontaine"]
+            },
+            "🏗️ Chantiers Perturbants": {
+                "api_id": "chantiers-perturbants",
+                "col_titre": "objet", "col_adresse": "voie",
+                "icone": "exclamation-triangle", "couleur": "red", 
+                "infos_sup": [("date_fin", "📅 Fin"), ("impact_circulation", "🚗 Impact")],
+                "mots_cles": ["travaux", "chantier", "route"]
+            },
+            "🔬 Laboratoires d'Analyses": {
+                "api_id": "laboratoires-danalyses-medicales",
+                "col_titre": "laboratoire", "col_adresse": "adresse",
+                "icone": "flask", "couleur": "green", 
+                "infos_sup": [("telephone", "📞 Tél"), ("horaires", "🕒 Horaires")],
+                "mots_cles": ["sante", "medecin", "laboratoire","MST"]
+            },
+            "🆘 Défibrillateurs": {
+                "api_id": "defibrillateurs",
+                "col_titre": "nom_etabl", "col_adresse": "adr_post",
+                "icone": "heartbeat", "couleur": "darkred", 
+                "infos_sup": [("acces_daw", "🚪 Accès")],
+                "mots_cles": ["coeur", "defibrillateur", "urgence"]
+            },
+            "🏫 Collèges": {
+                "api_id": "etablissements-scolaires-colleges",
+                "col_titre": "libelle", "col_adresse": "adresse",
+                "icone": "graduation-cap", "couleur": "darkblue", 
+                "infos_sup": [("public_prive", "🏫 Secteur")],
+                "mots_cles": ["college", "education"]
+            },
+            "🎓 Écoles Maternelles": {
+                "api_id": "etablissements-scolaires-maternelles",
+                "col_titre": "libelle", "col_adresse": "adresse",
+                "icone": "child", "couleur": "pink", 
+                "infos_sup": [("public_prive", "🏫 Secteur")],
+                "mots_cles": ["ecole", "maternelle", "enfant"]
+            },
+            # --- NOUVELLE CATEGORIE ---
             "📉 Qualité de l'Air (Courbes)": {
                 "api_id": "custom_meteo",
                 "col_titre": "", "col_adresse": "",
@@ -94,6 +136,14 @@ CONFIG_VILLES = {
                 "icone": "bus", "couleur": "cadetblue",
                 "infos_sup": [("destination", "🏁 Vers"), ("ecartsecondes", "⏱️ Écart (sec)")],
                 "mots_cles": ["bus", "transport", "star"]
+            },
+            "🚽 Toilettes Publiques": {
+                "api_id": "toilettes_publiques_vdr",
+                "col_titre": "nom_toilettes", 
+                "col_adresse": "voie",
+                "icone": "tint", "couleur": "green",
+                "infos_sup": [("quartier", "📍 Quartier"), ("acces_pmr", "♿ PMR")],
+                "mots_cles": ["toilettes", "wc", "pipi"]
             },
             "📊 Fréquentation Lignes (Stats uniquement)": {
                 "api_id": "mkt-frequentation-niveau-freq-max-ligne",
@@ -136,12 +186,40 @@ CONFIG_VILLES = {
                 "image_col": "media_1",
                 "mots_cles": ["sortie", "evenement", "culture", "concert"]
             },
+            "🏊 Piscines": {
+                "api_id": "244400404_piscines-nantes-metropole",
+                "col_titre": "libelle", "col_adresse": "adresse",
+                "icone": "swimmer", "couleur": "blue",
+                "infos_sup": [("telephone", "📞 Tél"), ("horaires_periode_scolaire", "🕒 Horaires")],
+                "mots_cles": ["piscine", "nage", "sport", "eau"]
+            },
             "🚲 Bicloo (Stations Vélos)": {
                 "api_id": "244400404_stations-velos-libre-service-nantes-metropole",
                 "col_titre": "nom", "col_adresse": "adresse",
                 "icone": "bicycle", "couleur": "red",
                 "infos_sup": [("status", "✅ État"), ("bike_stands", "🅿️ Bornes")],
                 "mots_cles": ["velo", "bicloo", "cyclisme", "transport"]
+            },
+            "❤️ Défibrillateurs": {
+                "api_id": "244400404_defibrillateurs-nantes",
+                "col_titre": "nom_site", "col_adresse": "adresse",
+                "icone": "heartbeat", "couleur": "green",
+                "infos_sup": [("acces", "🚪 Accès"), ("emplacement", "📍 Emplacement")],
+                "mots_cles": ["sante", "urgence", "coeur", "secours","défibrilateur"]
+            },
+            "🅿️ Parcs Relais (Dispo)": {
+                "api_id": "244400404_parcs-relais-nantes-metropole-disponibilites",
+                "col_titre": "nom_du_parc", "col_adresse": "adresse",
+                "icone": "parking", "couleur": "purple",
+                "infos_sup": [("grp_disponible", "🟢 Places Dispo"), ("grp_exploitation", "🔢 Total")],
+                "mots_cles": ["parking", "voiture", "tan", "stationnement","garer"]
+            },
+            "🛜 WiFi Public Extérieur": {
+                "api_id": "244400404_wifi-public-exterieur-nantes-metropole",
+                "col_titre": "nom", "col_adresse": "adresse",
+                "icone": "wifi", "couleur": "cadetblue",
+                "infos_sup": [("etat", "✅ État"), ("localisation", "📍 Lieu")],
+                "mots_cles": ["wifi", "internet", "web", "connexion"]
             },
             "📉 Qualité de l'Air (Courbes)": {
                 "api_id": "custom_meteo",

@@ -851,7 +851,7 @@ else:
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)
 # ==========================================
 st.divider()
-st.header("🧪 Labo de Corrélations (La Cerise)")
+st.header("🧪 Labo de Corrélations")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).

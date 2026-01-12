@@ -271,7 +271,6 @@ CONFIG_VILLES = {
     }
 }
 
-# AJOUT DE "ARRONDISSEMENT" POUR PARIS
 COLONNES_CP_A_SCANNER = ["cp", "code_postal", "code_post", "zipcode", "commune", "location_address", "cp_arrondissement", "address_zipcode", "arrondissement"]
 URL_LOGO = "logo_pulse.png" 
 
@@ -851,11 +850,11 @@ else:
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)
 # ==========================================
 st.divider()
-st.header("🧪 Labo de Corrélations")
+st.header("🧪 Labo de Corrélations (La Cerise)")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).
-* **Nantes/Rennes** : Regroupement par Zone Géographique (Carrés de ~1km²).
+* **Nantes/Rennes** : Regroupement par Zone Géographique (Carrés de ~100m²).
 """)
 
 with st.expander("Créer une analyse croisée", expanded=True):
@@ -891,9 +890,9 @@ with st.expander("Créer une analyse croisée", expanded=True):
                     # 2. Sinon (Nantes/Rennes), on fait un maillage GPS (Grid System)
                     lat, lon = recuperer_coordonnees(item)
                     if lat and lon:
-                        # On arrondit à 2 décimales (~1.1km de précision)
-                        grid_lat = round(lat * 2, 1) / 2
-                        grid_lon = round(lon * 2, 1) / 2
+                        # MODIFICATION ICI : On passe à 3 décimales (~110m de précision)
+                        grid_lat = round(lat, 3) 
+                        grid_lon = round(lon, 3)
                         return f"Zone GPS {grid_lat}/{grid_lon}"
                     
                     return None

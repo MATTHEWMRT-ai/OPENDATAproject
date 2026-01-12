@@ -536,18 +536,14 @@ with st.sidebar:
 
     # --- ZONE DE RECHERCHE AVEC MICRO (CORRIGÉ) ---
     col_text, col_mic = st.columns([8, 2])
-    
-    # 1. On exécute le Micro D'ABORD (Code) pour récupérer la valeur
     with col_mic:
         text_vocal = speech_to_text(language='fr', start_prompt="🎤", stop_prompt="🛑", just_once=True, key='STT')
 
-    # 2. Si on a de la voix, on met à jour la session AVANT d'afficher la barre texte
     if text_vocal:
         st.session_state.recherche_input = text_vocal
         valider_recherche() # On lance la recherche
         st.rerun() # On recharge la page pour afficher le texte dans la barre
 
-    # 3. On affiche la barre de texte ENSUITE (Visuellement elle reste à gauche)
     with col_text:
         st.text_input(
             "Ex: 'Parking Rennes', 'Wifi Paris'", 
@@ -567,7 +563,6 @@ with st.sidebar:
     st.divider()
     
     # --- LOGIQUE DE LISTES DYNAMIQUES (THEME -> DONNEE) ---
-    # On définit des mots-clés pour grouper les catégories automatiquement
     THEMES = {
         "🚍 Transport": ["parking", "vélo", "bus", "bicloo", "parcs relais", "métro"],
         "🌿 Nature & Air": ["vert", "jardin", "air", "pollution", "parc", "fraîcheur", "occupation"],
@@ -577,37 +572,41 @@ with st.sidebar:
         "🛠️ Services & Vie Pratique": ["wifi", "toilette", "sanisette", "fontaine", "chantier"]
     }
 
-    # Fonction pour trouver le thème d'une catégorie
     def trouver_theme(nom_cat):
         nom_clean = nom_cat.lower()
         for theme, mots_cles in THEMES.items():
             if any(mot in nom_clean for mot in mots_cles):
                 return theme
-        return "📂 Autres" # Si ça rentre nulle part
+        return "📂 Autres" 
 
-    # Création du dictionnaire {Theme: [Liste des catégories]}
     cats_par_theme = {}
     for cat in all_categories.keys():
         th = trouver_theme(cat)
         if th not in cats_par_theme: cats_par_theme[th] = []
         cats_par_theme[th].append(cat)
     
-    # Sélecteur 1 : Le Thème
-    # On trie les thèmes pour que ce soit propre
-    liste_themes = sorted(list(cats_par_theme.keys()))
-    theme_selectionne = st.selectbox("1️⃣ Filtrer par Thème :", liste_themes)
+    # --- FIX: FORCER LE THEME SI UNE RECHERCHE A ÉTÉ FAITE ---
+    theme_par_defaut = 0
+    cat_actuelle = st.session_state.cat_selectionnee
     
-    # Sélecteur 2 : La Donnée (Filtrée par le thème !)
+    # On trouve le thème de la catégorie actuelle
+    theme_trouve = trouver_theme(cat_actuelle)
+    liste_themes = sorted(list(cats_par_theme.keys()))
+    
+    if theme_trouve in liste_themes:
+        theme_par_defaut = liste_themes.index(theme_trouve)
+
+    theme_selectionne = st.selectbox("1️⃣ Filtrer par Thème :", liste_themes, index=theme_par_defaut)
+    
+    # Liste filtrée
     liste_cats_filtree = cats_par_theme[theme_selectionne]
     
-    # On gère le cas où la sélection précédente n'est plus dans la liste filtrée
-    index_par_defaut = 0
+    index_cat = 0
     if st.session_state.cat_selectionnee in liste_cats_filtree:
-        index_par_defaut = liste_cats_filtree.index(st.session_state.cat_selectionnee)
+        index_cat = liste_cats_filtree.index(st.session_state.cat_selectionnee)
         
-    choix_utilisateur_brut = st.selectbox("2️⃣ Choisir la donnée :", options=liste_cats_filtree, index=index_par_defaut)
+    choix_utilisateur_brut = st.selectbox("2️⃣ Choisir la donnée :", options=liste_cats_filtree, index=index_cat)
     
-    # Mise à jour de la session
     st.session_state.cat_selectionnee = choix_utilisateur_brut
     
     st.divider()

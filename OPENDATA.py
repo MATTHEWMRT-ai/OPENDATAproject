@@ -738,6 +738,16 @@ else:
                 HeatMap(coords_heatmap, radius=15).add_to(m)
             
             if coords_heatmap or style_vue == "📍 Points":
+                
+                # --- BOUTON DE TELECHARGEMENT ---
+                carte_html = m.get_root().render()
+                st.download_button(
+                    label="💾 Télécharger la carte interactive (HTML)",
+                    data=carte_html,
+                    file_name=f"carte_{ville_actuelle}_{choix_utilisateur}.html",
+                    mime="text/html"
+                )
+                
                 st_folium(m, width=1000, height=600, returned_objects=[])
             else:
                 st.warning("⚠️ Aucune coordonnée GPS trouvée.")
@@ -854,7 +864,7 @@ st.header("🧪 Labo de Corrélations (La Cerise)")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).
-* **Nantes/Rennes** : Regroupement par Zone Géographique (Carrés de ~100m²).
+* **Nantes/Rennes** : Regroupement par Zone Géographique (Carrés de ~1km²).
 """)
 
 with st.expander("Créer une analyse croisée", expanded=True):
@@ -890,9 +900,9 @@ with st.expander("Créer une analyse croisée", expanded=True):
                     # 2. Sinon (Nantes/Rennes), on fait un maillage GPS (Grid System)
                     lat, lon = recuperer_coordonnees(item)
                     if lat and lon:
-                        # MODIFICATION ICI : On passe à 3 décimales (~110m de précision)
-                        grid_lat = round(lat, 3) 
-                        grid_lon = round(lon, 3)
+                        # MODIFICATION ICI : Retour à round(2) pour éviter NaN
+                        grid_lat = round(lat, 2) 
+                        grid_lon = round(lon, 2)
                         return f"Zone GPS {grid_lat}/{grid_lon}"
                     
                     return None

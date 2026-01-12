@@ -47,7 +47,7 @@ CONFIG_VILLES = {
                 "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
                 "mots_cles": ["eau", "boire", "fontaine"]
             },
-            # --- DONNÉES ENFANCE & NATURE ---
+            # --- AUTRES DONNÉES ---
             "👶 Crèches (Municipales)": {
                 "api_id": "creches-municipales-et-subventionnees",
                 "col_titre": "nom_equipement", "col_adresse": "adresse",
@@ -69,7 +69,6 @@ CONFIG_VILLES = {
                 "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²")],
                 "mots_cles": ["parc", "jardin", "promenade", "nature"]
             },
-            # --- AUTRES DONNÉES ---
             "📅 Sorties & Événements": {
                 "api_id": "que-faire-a-paris-",
                 "col_titre": "title", "col_adresse": "address_name",
@@ -186,6 +185,23 @@ CONFIG_VILLES = {
         "cp_prefix": "44",
         "alias": ["nantes", "naoned", "44"],
         "categories": {
+            # --- NOUVELLE CORRÉLATION (NATURE & FRAICHEUR) ---
+            "❄️ Îlots de Fraîcheur": {
+                "api_id": "244400404_ilot-fraicheur-nantes-metropole",
+                "col_titre": "nom", "col_adresse": "commune",
+                "icone": "snowflake", "couleur": "lightblue",
+                "infos_sup": [("categorie", "🏷️ Categorie"), ("commune", "📍 Ville")],
+                "mots_cles": ["frais", "canicule", "climat", "nature"]
+            },
+            "🏗️ Occupation du Sol (Niveau 3)": {
+                "api_id": "244400404_occupation-sol-2022-niveau-3-nantes-metropole",
+                "col_titre": "libelle", "col_adresse": "commune",
+                "icone": "layer-group", "couleur": "green",
+                "infos_sup": [("code", "🔢 Code"), ("libelle", "🏷️ Type")],
+                "mots_cles": ["sol", "terrain", "nature", "urbanisme"]
+            },
+            
+            # --- DONNÉES CLASSIQUES ---
             "🎉 Salles à Louer": {
                 "api_id": "244400404_salles-nantes-disponibles-location",
                 "col_titre": "nom_de_la_salle", 
@@ -289,46 +305,34 @@ def convert_time_to_float(time_str):
 
 def recuperer_coordonnees(site):
     """ 
-    Détective de coordonnées V3 (Spécial geom_x_y) 
-    Gère les formats {lat:..., lon:...}, {y:..., x:...}, ou [lat, lon]
+    Détective de coordonnées V3 (Spécial geom_x_y + Polygones) 
     """
     
     # 1. PRIORITÉ : Vérifier le champ 'geom_x_y' qui pose problème
     if "geom_x_y" in site:
         val = site["geom_x_y"]
-        
-        # Si c'est un dictionnaire (ex: {'lat': 48.8, 'lon': 2.3} OU {'y': 48.8, 'x': 2.3})
         if isinstance(val, dict):
-            # On cherche la Latitude (souvent 'lat', 'latitude' ou 'y')
             lat = val.get('lat') or val.get('latitude') or val.get('y')
-            # On cherche la Longitude (souvent 'lon', 'longitude' ou 'x')
             lon = val.get('lon') or val.get('longitude') or val.get('x')
-            
             if lat is not None and lon is not None:
                 return float(lat), float(lon)
-
-        # Si c'est une liste (ex: [48.85, 2.35])
         if isinstance(val, list) and len(val) == 2:
             return float(val[0]), float(val[1])
 
-    # 2. Cas classiques (si geom_x_y n'existe pas ou est vide)
+    # 2. Cas classiques
     if "location" in site:
         loc = site["location"]
         if isinstance(loc, dict): return loc.get("lat"), loc.get("lon")
-    
     if "latitude" in site and "longitude" in site:
         try: return float(site["latitude"]), float(site["longitude"])
         except: pass
-        
     if "lat_lon" in site:
         ll = site["lat_lon"]
         if isinstance(ll, dict): return ll.get("lat"), ll.get("lon")
-        
     if "geo" in site:
         g = site["geo"]
         if isinstance(g, dict): return g.get("lat"), g.get("lon")
         
-    # 3. Dernier recours : les autres clés bizarres
     for cle in ["geolocalisation", "coordonnees", "geo_point_2d", "xy"]:
         val = site.get(cle)
         if val:
@@ -339,6 +343,30 @@ def recuperer_coordonnees(site):
                     parts = val.split(",")
                     return float(parts[0].strip()), float(parts[1].strip())
                 except: pass
+
+    # 3. GESTION DES POLYGONES (Pour l'Occupation du Sol et Parcs)
+    geom = site.get("geometry")
+    if geom and isinstance(geom, dict):
+        g_type = geom.get("type")
+        coords = geom.get("coordinates")
+        
+        if g_type == "Point" and coords:
+            return coords[1], coords[0]
+            
+        elif g_type in ["Polygon", "MultiPolygon"] and coords:
+            try:
+                def flatten(container):
+                    for i in container:
+                        if isinstance(i, list) and len(i) == 2 and isinstance(i[0], (int, float)):
+                            yield i
+                        elif isinstance(i, list):
+                            yield from flatten(i)
+                all_points = list(flatten(coords))
+                if all_points:
+                    avg_lon = sum(p[0] for p in all_points) / len(all_points)
+                    avg_lat = sum(p[1] for p in all_points) / len(all_points)
+                    return avg_lat, avg_lon
+            except: pass
 
     return None, None
 
@@ -376,7 +404,7 @@ def jouer_son_automatique(texte):
     except:
         pass
 
-# CACHE ACTIF (2 HEURES) POUR EVITER DE TROP APPELER L'API
+# CACHE ACTIF (2 HEURES)
 @st.cache_data(ttl=7200, show_spinner=False) 
 def charger_donnees(base_url, api_id, cible=500):
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -495,7 +523,7 @@ with st.sidebar:
     # On définit des mots-clés pour grouper les catégories automatiquement
     THEMES = {
         "🚍 Transport": ["parking", "vélo", "bus", "bicloo", "parcs relais", "métro"],
-        "🌿 Nature & Air": ["vert", "jardin", "air", "pollution", "parc"],
+        "🌿 Nature & Air": ["vert", "jardin", "air", "pollution", "parc", "fraîcheur", "occupation"],
         "🎭 Culture & Sorties": ["sortie", "événement", "agenda", "salle", "piscine"],
         "⚕️ Santé & Sécurité": ["défibrillateur", "laboratoire", "secours", "urgence"],
         "🚸 Éducation & Enfance": ["école", "collège", "crèche", "maternelle"],
@@ -788,6 +816,9 @@ else:
 
     with tab_donnees:
         st.dataframe(resultats_finaux)
+        if len(resultats_finaux) > 0:
+             with st.expander("🔍 Débogage (Voir format 1er élément)"):
+                 st.write(resultats_finaux[0])
 
 # ==========================================
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)

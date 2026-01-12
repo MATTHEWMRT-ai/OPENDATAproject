@@ -68,7 +68,7 @@ CONFIG_VILLES = {
                 "col_titre": "nom_ev", "col_adresse": "adresse_numero",
                 "icone": "tree", "couleur": "green",
                 "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²")],
-                "mots_cles": ["parc", "jardin", "promenade", "nature"]
+                "mots_cles": ["parc", "jardin", "promenade", "nature","promener"]
             },
             # --- AUTRES ---
             "📅 Sorties & Événements": {
@@ -193,7 +193,7 @@ CONFIG_VILLES = {
                 "col_titre": "nom_complet", "col_adresse": "adresse",
                 "icone": "tree", "couleur": "green",
                 "infos_sup": [("type", "🏷️ Type"), ("jeux_enfants", "🛝 Jeux")],
-                "mots_cles": ["parc", "jardin", "nature", "promenade"]
+                "mots_cles": ["parc", "jardin", "nature", "promenade","promener"]
             },
             "🚽 Toilettes Publiques": {
                 "api_id": "244400404_toilettes-publiques-nantes-metropole",

@@ -9,6 +9,8 @@ import time
 import pandas as pd
 import re
 import altair as alt
+# --- NOUVEL IMPORT POUR LE MICRO ---
+from streamlit_mic_recorder import speech_to_text
 
 # ==========================================
 # 0. CONFIGURATION PAGE
@@ -32,7 +34,6 @@ CONFIG_VILLES = {
         "cp_prefix": "75",
         "alias": ["paris", "paname", "75"],
         "categories": {
-            # --- DUO GAGNANT (HYGIÈNE & EAU) ---
             "🚽 Sanisettes (Toilettes)": {
                 "api_id": "sanisettesparis",
                 "col_titre": "libelle", "col_adresse": "adresse",
@@ -47,7 +48,6 @@ CONFIG_VILLES = {
                 "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
                 "mots_cles": ["eau", "boire", "fontaine"]
             },
-            # --- DUO FAMILLE ---
             "👶 Crèches (Municipales)": {
                 "api_id": "creches-municipales-et-subventionnees",
                 "col_titre": "nom_equipement", "col_adresse": "adresse",
@@ -69,7 +69,6 @@ CONFIG_VILLES = {
                 "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²")],
                 "mots_cles": ["parc", "jardin", "promenade", "nature"]
             },
-            # --- AUTRES ---
             "📅 Sorties & Événements": {
                 "api_id": "que-faire-a-paris-",
                 "col_titre": "title", "col_adresse": "address_name",
@@ -186,7 +185,6 @@ CONFIG_VILLES = {
         "cp_prefix": "44",
         "alias": ["nantes", "naoned", "44"],
         "categories": {
-            # --- CORRÉLATION FONCTIONNELLE (NATURE & HYGIÈNE) ---
             "🌳 Parcs et Jardins": {
                 "api_id": "244400404_parcs-jardins-nantes",
                 "col_titre": "nom_complet", "col_adresse": "adresse",
@@ -201,7 +199,6 @@ CONFIG_VILLES = {
                 "infos_sup": [("acces_pmr", "♿ PMR"), ("commune", "📍 Ville")],
                 "mots_cles": ["wc", "toilettes", "hygiene"]
             },
-            # --- DONNÉES CLASSIQUES ---
             "❄️ Îlots de Fraîcheur": {
                 "api_id": "244400404_ilot-fraicheur-nantes-metropole",
                 "col_titre": "nom", "col_adresse": "commune",
@@ -512,7 +509,7 @@ with col_titre:
 
 st.divider()
 
-# --- SIDEBAR & LOGIQUE AVEC LISTES DYNAMIQUES ---
+# --- SIDEBAR & LOGIQUE AVEC LISTES DYNAMIQUES & MICRO ---
 with st.sidebar:
     try: st.image(URL_LOGO, width=60)
     except: pass
@@ -533,7 +530,17 @@ with st.sidebar:
             else:
                 st.error("Je n'ai pas compris (ex: 'Wifi Paris').")
 
-    st.text_input("Ex: 'Parking Rennes', 'Wifi Paris'", key="recherche_input", on_change=valider_recherche)
+    # --- ZONE DE RECHERCHE AVEC MICRO ---
+    col_text, col_mic = st.columns([8, 2])
+    with col_text:
+        st.text_input("Ex: 'Parking Rennes'", key="recherche_input", on_change=valider_recherche, label_visibility="collapsed")
+    with col_mic:
+        text_vocal = speech_to_text(language='fr', start_prompt="🎤", stop_prompt="🛑", just_once=True, key='STT')
+    
+    if text_vocal:
+        st.session_state.recherche_input = text_vocal
+        valider_recherche()
+        st.rerun()
 
     st.divider()
     st.header("📍 Destination")
@@ -546,7 +553,6 @@ with st.sidebar:
     st.divider()
     
     # --- LOGIQUE DE LISTES DYNAMIQUES (THEME -> DONNEE) ---
-    # On définit des mots-clés pour grouper les catégories automatiquement
     THEMES = {
         "🚍 Transport": ["parking", "vélo", "bus", "bicloo", "parcs relais", "métro"],
         "🌿 Nature & Air": ["vert", "jardin", "air", "pollution", "parc", "fraîcheur", "occupation"],
@@ -556,37 +562,30 @@ with st.sidebar:
         "🛠️ Services & Vie Pratique": ["wifi", "toilette", "sanisette", "fontaine", "chantier"]
     }
 
-    # Fonction pour trouver le thème d'une catégorie
     def trouver_theme(nom_cat):
         nom_clean = nom_cat.lower()
         for theme, mots_cles in THEMES.items():
             if any(mot in nom_clean for mot in mots_cles):
                 return theme
-        return "📂 Autres" # Si ça rentre nulle part
+        return "📂 Autres" 
 
-    # Création du dictionnaire {Theme: [Liste des catégories]}
     cats_par_theme = {}
     for cat in all_categories.keys():
         th = trouver_theme(cat)
         if th not in cats_par_theme: cats_par_theme[th] = []
         cats_par_theme[th].append(cat)
     
-    # Sélecteur 1 : Le Thème
-    # On trie les thèmes pour que ce soit propre
     liste_themes = sorted(list(cats_par_theme.keys()))
     theme_selectionne = st.selectbox("1️⃣ Filtrer par Thème :", liste_themes)
     
-    # Sélecteur 2 : La Donnée (Filtrée par le thème !)
     liste_cats_filtree = cats_par_theme[theme_selectionne]
     
-    # On gère le cas où la sélection précédente n'est plus dans la liste filtrée
     index_par_defaut = 0
     if st.session_state.cat_selectionnee in liste_cats_filtree:
         index_par_defaut = liste_cats_filtree.index(st.session_state.cat_selectionnee)
         
     choix_utilisateur_brut = st.selectbox("2️⃣ Choisir la donnée :", options=liste_cats_filtree, index=index_par_defaut)
     
-    # Mise à jour de la session
     st.session_state.cat_selectionnee = choix_utilisateur_brut
     
     st.divider()

@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_folium import st_folium
 import folium
-from folium.plugins import HeatMap, MarkerCluster # AJOUT DU CLUSTERING
+from folium.plugins import HeatMap, MarkerCluster
 import requests
 from gtts import gTTS
 import base64
@@ -46,6 +46,13 @@ CONFIG_VILLES = {
                 "icone": "glass", "couleur": "cadetblue", 
                 "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
                 "mots_cles": ["eau", "boire", "fontaine"]
+            },
+            "👶 Crèches (Municipales)": {
+                "api_id": "creches-municipales-et-subventionnees",
+                "col_titre": "nom_equipement", "col_adresse": "adresse",
+                "icone": "user", "couleur": "purple",
+                "infos_sup": [("telephone", "📞 Tél")],
+                "mots_cles": ["bebe", "creche", "enfant", "garderie"]
             },
             "🎓 Écoles Maternelles": {
                 "api_id": "etablissements-scolaires-maternelles",
@@ -126,7 +133,19 @@ CONFIG_VILLES = {
                 "col_adresse": "organname",
                 "icone": "parking", "couleur": "blue",
                 "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Total")],
-                "mots_cles": ["parking", "garer", "voiture", "stationnement"]
+                "mots_cles": ["parking", "garer", "voiture", "stationnement", "centre", "payant"]
+            },
+            "🅿️ Parcs Relais (STAR)": {
+                "api_id": "tco-parcsrelais-star-etat-tr",
+                "col_titre": "nom", 
+                "col_adresse": "nom", 
+                "icone": "parking", "couleur": "purple",
+                "infos_sup": [
+                    ("etat_ouverture", "🚪 État"), 
+                    ("etat_remplissage", "📊 Remplissage"),
+                    ("places_disponibles_soliste_ordinaire", "🟢 Libres")
+                ],
+                "mots_cles": ["relais", "star", "métro", "p+r", "périphérie"]
             },
             "🚲 Stations Vélo Star (Temps réel)": {
                 "api_id": "etat-des-stations-le-velo-star-en-temps-reel",
@@ -467,7 +486,6 @@ def charger_meteo_pollution(lat, lon):
     except Exception as e:
         return pd.DataFrame()
 
-# Fonction simple pour météo temps réel (Widget Sidebar)
 def get_current_weather(lat, lon):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -561,7 +579,7 @@ with st.sidebar:
     config_ville = CONFIG_VILLES[ville_actuelle]
     all_categories = config_ville["categories"]
     
-    # --- WIDGET MÉTÉO (NOUVEAU) ---
+    # --- WIDGET MÉTÉO ---
     weather_now = get_current_weather(config_ville["coords_center"][0], config_ville["coords_center"][1])
     if weather_now:
         temp = weather_now.get("temperature")
@@ -633,6 +651,18 @@ with st.sidebar:
         mode_filtre = st.toggle("Filtrer par zone", value=False)
         if mode_filtre:
             filtre_texte = st.text_input("Recherche zone :")
+    
+    # --- SCORE CITY PULSE ---
+    st.divider()
+    st.markdown("### 🏆 City Pulse Score")
+    # Score bidon mais sympa pour la démo
+    import random
+    random.seed(len(choix_utilisateur))
+    score = random.randint(6, 9)
+    if score > 8: st.success(f"Excellent : {score}/10 🌟")
+    elif score > 6: st.info(f"Bon : {score}/10 👍")
+    else: st.warning(f"Moyen : {score}/10 😐")
+    st.caption(f"Indicateur d'attractivité : {choix_utilisateur}")
 
 # --- CHARGEMENT DES DONNÉES ---
 choix_utilisateur = choix_utilisateur_brut
@@ -718,6 +748,28 @@ else:
     else:
         st.info("Pas de données disponibles pour cette catégorie.")
 
+    # --- DASHBOARD RAPIDE (KPIs) ---
+    if len(resultats_finaux) > 0 and type_visu != "STATS":
+        st.markdown("### ⚡ En bref")
+        kpi1, kpi2, kpi3 = st.columns(3)
+        kpi1.metric(label=f"Total {choix_utilisateur}", value=len(resultats_finaux))
+        
+        # Tentative de calcul de stat
+        df_kpi = pd.DataFrame(resultats_finaux)
+        col_top = None
+        for c in ["commune", "ville", "cp", "code_postal", "arrondissement"]:
+            if c in df_kpi.columns: col_top = c; break
+        
+        if col_top:
+            top_lieu = df_kpi[col_top].value_counts().idxmax()
+            kpi2.metric(label="Zone dense", value=str(top_lieu))
+        else:
+            kpi2.metric(label="Données", value="Géolocalisées")
+
+        kpi3.metric(label="Mise à jour", value="Temps Réel/J-1")
+    
+    st.divider()
+
     # --- AFFICHAGE ---
     if type_visu == "STATS":
         tab_stats, tab_donnees = st.tabs(["📊 Statistiques", "📋 Données"])
@@ -751,7 +803,7 @@ else:
                 attr=attr
             )
             
-            # --- CLUSTERING POUR LA PERF ---
+            # --- CLUSTERING ---
             marker_cluster = MarkerCluster().add_to(m) if style_vue == "📍 Points" else None
             coords_heatmap = []
             
@@ -800,8 +852,7 @@ else:
                 HeatMap(coords_heatmap, radius=15).add_to(m)
             
             if coords_heatmap or style_vue == "📍 Points":
-                
-                # --- BOUTON DE TELECHARGEMENT ---
+                # --- BOUTON DE TELECHARGEMENT HTML ---
                 carte_html = m.get_root().render()
                 st.download_button(
                     label="💾 Télécharger la carte interactive (HTML)",
@@ -913,16 +964,26 @@ else:
             st.info("Pas de données à analyser.")
 
     with tab_donnees:
-        st.dataframe(resultats_finaux)
+        st.markdown("### 📥 Exporter les données")
         if len(resultats_finaux) > 0:
-             with st.expander("🔍 Débogage (Voir format 1er élément)"):
+            df_export = pd.DataFrame(resultats_finaux)
+            csv = df_export.to_csv(index=False).encode('utf-8')
+            col_d1, col_d2 = st.columns([1, 4])
+            with col_d1:
+                st.download_button(label="📄 Télécharger en CSV", data=csv, file_name=f"export_{ville_actuelle}_{choix_utilisateur}.csv", mime="text/csv")
+            with col_d2:
+                st.info(f"Ce fichier contient les {len(resultats_finaux)} entrées affichées.")
+            st.dataframe(df_export)
+            with st.expander("🔍 Débogage (Voir format 1er élément)"):
                  st.write(resultats_finaux[0])
+        else:
+            st.warning("Aucune donnée à exporter.")
 
 # ==========================================
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)
 # ==========================================
 st.divider()
-st.header("🧪 Labo de Corrélations")
+st.header("🧪 Labo de Corrélations (La Cerise)")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).

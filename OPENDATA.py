@@ -9,7 +9,7 @@ import time
 import pandas as pd
 import re
 import altair as alt
-import random # Déplacé en haut pour être propre
+import random
 from streamlit_mic_recorder import speech_to_text
 
 # ==========================================
@@ -38,7 +38,7 @@ CONFIG_VILLES = {
                 "api_id": "sanisettesparis",
                 "col_titre": "libelle", "col_adresse": "adresse",
                 "icone": "tint", "couleur": "blue", 
-                "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR")],
+                "infos_sup": [("horaire", "🕒 Horaires"), ("acces_pmr", "♿ PMR"), ("arrondissement", "📍 Arrdt")],
                 "mots_cles": ["toilettes", "wc", "pipi", "sanisette"]
             },
             "⛲️ Fontaines à boire": {
@@ -52,7 +52,7 @@ CONFIG_VILLES = {
                 "api_id": "creches-municipales-et-subventionnees",
                 "col_titre": "nom_equipement", "col_adresse": "adresse",
                 "icone": "user", "couleur": "purple",
-                "infos_sup": [("telephone", "📞 Tél")],
+                "infos_sup": [("telephone", "📞 Tél"), ("capacite", "👶 Places")],
                 "mots_cles": ["bebe", "creche", "enfant", "garderie"]
             },
             "🎓 Écoles Maternelles": {
@@ -66,14 +66,14 @@ CONFIG_VILLES = {
                 "api_id": "espaces_verts",
                 "col_titre": "nom_ev", "col_adresse": "adresse_numero",
                 "icone": "tree", "couleur": "green",
-                "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²")],
+                "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²"), ("adresse_codepostal", "📮 CP")],
                 "mots_cles": ["parc", "jardin", "promenade", "nature"]
             },
             "📅 Sorties & Événements": {
                 "api_id": "que-faire-a-paris-",
                 "col_titre": "title", "col_adresse": "address_name",
                 "icone": "calendar", "couleur": "orange",
-                "infos_sup": [("date_start", "📅 Date"), ("price_type", "💶 Prix"), ("lead_text", "ℹ️ Info")],
+                "infos_sup": [("date_start", "📅 Début"), ("price_type", "💶 Prix"), ("lead_text", "ℹ️ Info")],
                 "image_col": "cover_url",
                 "mots_cles": ["sorties", "evenements", "concert", "expo", "culture"]
             },
@@ -133,7 +133,7 @@ CONFIG_VILLES = {
                 "col_titre": "key",
                 "col_adresse": "organname",
                 "icone": "parking", "couleur": "blue",
-                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Total")],
+                "infos_sup": [("status", "✅ État"), ("free", "🟢 Places Libres"), ("max", "🔢 Capacité Total")],
                 "mots_cles": ["parking", "garer", "voiture", "stationnement", "centre", "payant"]
             },
             "🅿️ Parcs Relais (STAR)": {
@@ -143,8 +143,10 @@ CONFIG_VILLES = {
                 "icone": "parking", "couleur": "purple",
                 "infos_sup": [
                     ("etat_ouverture", "🚪 État"), 
-                    ("etat_remplissage", "📊 Remplissage"),
-                    ("places_disponibles_soliste_ordinaire", "🟢 Libres")
+                    ("places_disponibles_soliste_ordinaire", "🟢 Places Libres"),
+                    ("capacite_place_soliste_ordinaire", "🔢 Capacité Totale"),
+                    ("places_disponibles_pmr", "♿ Places PMR"),
+                    ("places_disponibles_vehicule_elec", "⚡ Places Élec")
                 ],
                 "mots_cles": ["relais", "star", "métro", "p+r", "périphérie"]
             },
@@ -245,7 +247,7 @@ CONFIG_VILLES = {
                 "api_id": "244400404_stations-velos-libre-service-nantes-metropole",
                 "col_titre": "nom", "col_adresse": "adresse",
                 "icone": "bicycle", "couleur": "red",
-                "infos_sup": [("status", "✅ État"), ("bike_stands", "🅿️ Bornes")],
+                "infos_sup": [("status", "✅ État"), ("bike_stands", "🔢 Bornes Total"), ("available_bikes", "🚲 Vélos dispo")],
                 "mots_cles": ["velo", "bicloo", "cyclisme", "transport"]
             },
             "❤️ Défibrillateurs": {
@@ -554,7 +556,7 @@ with st.sidebar:
             else:
                 st.error("Je n'ai pas compris (ex: 'Wifi Paris').")
 
-    # --- ZONE DE RECHERCHE AVEC MICRO ---
+    # --- ZONE DE RECHERCHE AVEC MICRO (CORRIGÉ) ---
     col_text, col_mic = st.columns([8, 2])
     with col_mic:
         text_vocal = speech_to_text(language='fr', start_prompt="🎤 Parler", stop_prompt="🛑 Arrêter", just_once=True, key='STT')
@@ -749,26 +751,6 @@ else:
     else:
         st.info("Pas de données disponibles pour cette catégorie.")
 
-    # --- DASHBOARD RAPIDE (KPIs) ---
-    if len(resultats_finaux) > 0 and type_visu != "STATS":
-        st.markdown("### ⚡ En bref")
-        kpi1, kpi2, kpi3 = st.columns(3)
-        kpi1.metric(label=f"Total {choix_utilisateur}", value=len(resultats_finaux))
-        
-        # Tentative de calcul de stat
-        df_kpi = pd.DataFrame(resultats_finaux)
-        col_top = None
-        for c in ["commune", "ville", "cp", "code_postal", "arrondissement"]:
-            if c in df_kpi.columns: col_top = c; break
-        
-        if col_top:
-            top_lieu = df_kpi[col_top].value_counts().idxmax()
-            kpi2.metric(label="Zone dense", value=str(top_lieu))
-        else:
-            kpi2.metric(label="Données", value="Géolocalisées")
-
-        kpi3.metric(label="Mise à jour", value="Temps Réel/J-1")
-    
     st.divider()
 
     # --- AFFICHAGE ---

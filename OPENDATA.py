@@ -9,6 +9,7 @@ import time
 import pandas as pd
 import re
 import altair as alt
+import random # Déplacé en haut pour être propre
 from streamlit_mic_recorder import speech_to_text
 
 # ==========================================
@@ -656,13 +657,13 @@ with st.sidebar:
     st.divider()
     st.markdown("### 🏆 City Pulse Score")
     # Score bidon mais sympa pour la démo
-    import random
-    random.seed(len(choix_utilisateur))
+    # CORRECTION BUG NAME_ERROR : Utiliser la variable brute
+    random.seed(len(choix_utilisateur_brut))
     score = random.randint(6, 9)
     if score > 8: st.success(f"Excellent : {score}/10 🌟")
     elif score > 6: st.info(f"Bon : {score}/10 👍")
     else: st.warning(f"Moyen : {score}/10 😐")
-    st.caption(f"Indicateur d'attractivité : {choix_utilisateur}")
+    st.caption(f"Indicateur d'attractivité : {choix_utilisateur_brut}")
 
 # --- CHARGEMENT DES DONNÉES ---
 choix_utilisateur = choix_utilisateur_brut

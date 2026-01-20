@@ -47,13 +47,6 @@ CONFIG_VILLES = {
                 "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
                 "mots_cles": ["eau", "boire", "fontaine"]
             },
-            "👶 Crèches (Municipales)": {
-                "api_id": "creches-municipales-et-subventionnees",
-                "col_titre": "nom_equipement", "col_adresse": "adresse",
-                "icone": "user", "couleur": "purple",
-                "infos_sup": [("telephone", "📞 Tél")],
-                "mots_cles": ["bebe", "creche", "enfant", "garderie"]
-            },
             "🎓 Écoles Maternelles": {
                 "api_id": "etablissements-scolaires-maternelles",
                 "col_titre": "libelle", "col_adresse": "adresse",
@@ -929,7 +922,7 @@ else:
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)
 # ==========================================
 st.divider()
-st.header("🧪 Labo de Corrélations (La Cerise)")
+st.header("🧪 Labo de Corrélations")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).

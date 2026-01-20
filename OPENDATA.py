@@ -44,7 +44,7 @@ CONFIG_VILLES = {
             "⛲️ Fontaines à boire": {
                 "api_id": "fontaines-a-boire",
                 "col_titre": "voie", "col_adresse": "commune",
-                "icone": "tint", "couleur": "cadetblue", 
+                "icone": "glass", "couleur": "cadetblue", 
                 "infos_sup": [("dispo", "💧 Dispo"), ("type_objet", "⚙️ Type")],
                 "mots_cles": ["eau", "boire", "fontaine"]
             },
@@ -68,7 +68,7 @@ CONFIG_VILLES = {
                 "col_titre": "nom_ev", "col_adresse": "adresse_numero",
                 "icone": "tree", "couleur": "green",
                 "infos_sup": [("categorie", "🏷️ Type"), ("surface_totale_reelle", "📏 m²")],
-                "mots_cles": ["parc", "jardin", "promenade", "nature","promener"]
+                "mots_cles": ["parc", "jardin", "promenade", "nature"]
             },
             # --- AUTRES ---
             "📅 Sorties & Événements": {
@@ -193,7 +193,7 @@ CONFIG_VILLES = {
                 "col_titre": "nom_complet", "col_adresse": "adresse",
                 "icone": "tree", "couleur": "green",
                 "infos_sup": [("type", "🏷️ Type"), ("jeux_enfants", "🛝 Jeux")],
-                "mots_cles": ["parc", "jardin", "nature", "promenade","promener"]
+                "mots_cles": ["parc", "jardin", "nature", "promenade"]
             },
             "🚽 Toilettes Publiques": {
                 "api_id": "244400404_toilettes-publiques-nantes-metropole",
@@ -537,7 +537,7 @@ with st.sidebar:
     # --- ZONE DE RECHERCHE AVEC MICRO (CORRIGÉ) ---
     col_text, col_mic = st.columns([8, 2])
     with col_mic:
-        text_vocal = speech_to_text(language='fr', start_prompt="🎤", stop_prompt="🛑", just_once=True, key='STT')
+        text_vocal = speech_to_text(language='fr', start_prompt="🎤 Parler", stop_prompt="🛑 Arrêter", just_once=True, key='STT')
 
     if text_vocal:
         st.session_state.recherche_input = text_vocal
@@ -720,8 +720,29 @@ else:
 
     if tab_carte:
         with tab_carte:
-            style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
-            m = folium.Map(location=config_ville["coords_center"], zoom_start=config_ville["zoom_start"])
+            # --- SÉLECTEUR DE STYLE DE CARTE ---
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                style_vue = st.radio("Vue :", ["📍 Points", "🔥 Densité"], horizontal=True)
+            with c2:
+                fond_carte = st.selectbox("Fond de plan :", ["Clair (Défaut)", "Sombre (Nuit)", "Satellite"])
+            
+            # Configuration du fond
+            tiles_layer = "OpenStreetMap" # Défaut
+            attr = None
+            if fond_carte == "Sombre (Nuit)":
+                tiles_layer = "CartoDB dark_matter"
+                attr = "CartoDB"
+            elif fond_carte == "Satellite":
+                tiles_layer = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attr = "Esri"
+
+            m = folium.Map(
+                location=config_ville["coords_center"], 
+                zoom_start=config_ville["zoom_start"],
+                tiles=tiles_layer,
+                attr=attr
+            )
             coords_heatmap = []
             
             for site in resultats_finaux:
@@ -880,7 +901,7 @@ else:
 # 4. SECTION : LABO DE CORRÉLATIONS (V2)
 # ==========================================
 st.divider()
-st.header("🧪 Labo de Corrélations (La Cerise)")
+st.header("🧪 Labo de Corrélations")
 st.markdown("""
 Recherche de liens entre deux données. 
 * **Paris** : Regroupement par Arrondissement (CP).

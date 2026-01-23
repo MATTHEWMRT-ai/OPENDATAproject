@@ -657,17 +657,9 @@ with st.sidebar:
         if mode_filtre:
             filtre_texte = st.text_input("Recherche zone :")
     
-    # --- SCORE CITY PULSE ---
-    st.divider()
-    st.markdown("### 🏆 City Pulse Score")
-    # Score bidon mais sympa pour la démo
-    # CORRECTION BUG NAME_ERROR : Utiliser la variable brute
-    random.seed(len(choix_utilisateur_brut))
-    score = random.randint(6, 9)
-    if score > 8: st.success(f"Excellent : {score}/10 🌟")
-    elif score > 6: st.info(f"Bon : {score}/10 👍")
-    else: st.warning(f"Moyen : {score}/10 😐")
-    st.caption(f"Indicateur d'attractivité : {choix_utilisateur_brut}")
+    # -----------------------------
+    # SECTION "CITY PULSE SCORE" RETIRÉE ICI
+    # -----------------------------
 
 # --- CHARGEMENT DES DONNÉES ---
 choix_utilisateur = choix_utilisateur_brut
